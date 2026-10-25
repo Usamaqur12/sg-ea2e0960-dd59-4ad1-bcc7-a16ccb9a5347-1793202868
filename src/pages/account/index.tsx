@@ -31,7 +31,7 @@ export default function Account() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set());
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<string>>(new Set<string>());
   const [stats, setStats] = useState({
     totalBets: 0,
     activeBets: 0,
