@@ -124,7 +124,7 @@ export default function Account() {
 
     // Update local state
     setDismissedAnnouncements((prev) => {
-      const newSet = new Set(prev);
+      const newSet = new Set<string>(prev);
       newSet.add(announcementId);
       return newSet;
     });
