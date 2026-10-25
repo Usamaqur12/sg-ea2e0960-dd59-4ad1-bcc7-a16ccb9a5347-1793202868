@@ -297,11 +297,6 @@ export default function SupportPage() {
                       <p className="text-xs text-muted-foreground mt-2">
                         Updated: {new Date(ticket.updated_at).toLocaleString()}
                       </p>
-                      {ticket.resolved_at && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Resolved: {new Date(ticket.resolved_at).toLocaleString()}
-                        </p>
-                      )}
                     </CardContent>
                   </Card>
                 ))
