@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
 import { getUserBets, cancelBet } from "@/services/bettingService";
 import { getUserTransactions } from "@/services/walletService";
-import { getNotifications, markNotificationAsRead } from "@/services/notificationsService";
+import { getNotifications, markNotificationRead } from "@/services/notificationsService";
 import { calculateCashoutOffer, processCashout } from "@/services/cashoutService";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -161,7 +161,7 @@ export default function UserDashboard() {
   }
 
   async function handleMarkNotificationRead(notificationId: string) {
-    await markNotificationAsRead(notificationId);
+    await markNotificationRead(notificationId);
     await loadNotifications();
   }
 
