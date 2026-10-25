@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
-import { demoClient } from "./demoClient";
+import { createDemoSupabaseClient } from "./demoClient";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -13,6 +13,9 @@ const shouldUseDemoMode = isDemoMode || enableDemoBackend || !isSupabaseConfigur
 
 // Export flag for other modules to check
 export const isUsingDemoMode = shouldUseDemoMode;
+
+// Create demo client instance
+const demoClient = createDemoSupabaseClient();
 
 // Create real Supabase client only if configured
 let realClient: any = null;
