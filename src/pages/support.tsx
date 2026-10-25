@@ -50,7 +50,7 @@ export default function SupportPage() {
     subject: "",
     category: "other" as TicketCategory,
     priority: "medium" as TicketPriority,
-    description: "",
+    message: "",
   });
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function SupportPage() {
   }
 
   async function handleCreateTicket() {
-    if (!newTicket.subject || !newTicket.description) {
+    if (!newTicket.subject || !newTicket.message) {
       toast({ title: "Error", description: "Please fill in all fields", variant: "destructive" });
       return;
     }
@@ -98,11 +98,11 @@ export default function SupportPage() {
     
     if (result.success) {
       toast({ title: "Success", description: "Support ticket created" });
-      setNewTicket({ subject: "", category: "other", priority: "medium", description: "" });
+      setNewTicket({ subject: "", category: "other", priority: "medium", message: "" });
       setCreateDialogOpen(false);
       await loadTickets();
     } else {
-      toast({ title: "Error", description: result.error, variant: "destructive" });
+      toast({ title: "Error", description: result.error || "Failed to create ticket", variant: "destructive" });
     }
     setSending(false);
   }
@@ -140,8 +140,6 @@ export default function SupportPage() {
       toast({ title: "Ticket closed" });
       setViewDialogOpen(false);
       await loadTickets();
-    } else {
-      toast({ title: "Error", description: result.error, variant: "destructive" });
     }
   }
 
@@ -259,7 +257,7 @@ export default function SupportPage() {
                         {getStatusBadge(ticket.status)}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                        {ticket.description}
+                        {ticket.message}
                       </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Created: {new Date(ticket.created_at).toLocaleString()}</span>
@@ -294,7 +292,10 @@ export default function SupportPage() {
                         {getStatusBadge(ticket.status)}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2">
-                        {ticket.description}
+                        {ticket.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Updated: {new Date(ticket.updated_at).toLocaleString()}
                       </p>
                       {ticket.resolved_at && (
                         <p className="text-xs text-muted-foreground mt-2">
@@ -358,11 +359,11 @@ export default function SupportPage() {
               </div>
             </div>
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="message">Description</Label>
               <Textarea
-                id="description"
-                value={newTicket.description}
-                onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                id="message"
+                value={newTicket.message}
+                onChange={(e) => setNewTicket({ ...newTicket, message: e.target.value })}
                 placeholder="Provide detailed information about your issue..."
                 rows={6}
               />
