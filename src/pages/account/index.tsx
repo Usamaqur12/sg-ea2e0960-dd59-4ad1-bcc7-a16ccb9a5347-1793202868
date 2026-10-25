@@ -93,7 +93,7 @@ export default function Account() {
         .select("announcement_id")
         .eq("user_id", userId);
 
-      const dismissedSet = new Set(dismissed?.map(d => d.announcement_id) || []);
+      const dismissedSet = new Set<string>((dismissed || []).map(d => d.announcement_id as string));
       setDismissedAnnouncements(dismissedSet);
 
       // Filter out dismissed announcements and cast types
