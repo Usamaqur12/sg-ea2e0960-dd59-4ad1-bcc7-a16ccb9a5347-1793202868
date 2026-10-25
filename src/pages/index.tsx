@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { SportsbookEvent, SportsbookOutcome } from "@/types/sportsbook";
 import Link from "next/link";
 import { getUserFavoriteEventIds, toggleFavorite as persistFavorite } from "@/services/favoritesService";
+import { LiveOddsFeed } from "@/components/sportsbook/LiveOddsFeed";
 
 export default function Home() {
   const router = useRouter();
@@ -310,6 +311,9 @@ export default function Home() {
 
             {/* Right Sidebar Widgets - Hidden on mobile, shown on large screens */}
             <aside className="hidden xl:block w-64 p-2 space-y-3 flex-shrink-0">
+              {/* Live Odds Feed */}
+              <LiveOddsFeed />
+
               {/* Live Casino Widget */}
               <Card className="overflow-hidden border-border bg-surface">
                 <div className="relative h-32 bg-gradient-to-br from-danger/20 via-danger/10 to-background overflow-hidden">

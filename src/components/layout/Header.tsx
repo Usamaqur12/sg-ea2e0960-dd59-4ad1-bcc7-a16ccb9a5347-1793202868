@@ -52,6 +52,7 @@ export function Header({ user, onAuthClick }: HeaderProps) {
     { label: t("esports"), href: "/esports" },
     { label: t("promotions"), href: "/promotions" },
     { label: t("rewards"), href: "/rewards" },
+    { label: "Support", href: "/support" },
   ];
 
   const isActive = (path: string) => router.pathname === path;
