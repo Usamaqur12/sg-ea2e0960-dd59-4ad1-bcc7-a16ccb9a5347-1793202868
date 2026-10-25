@@ -7,7 +7,7 @@ import { useBetSlip } from "@/hooks/useBetSlip";
 
 export function LiveOddsFeed() {
   const { connected, liveEvents, error } = useLiveOdds();
-  const { addSelection } = useBetSlip();
+  const { addBet } = useBetSlip();
 
   if (error) {
     return (
@@ -95,13 +95,15 @@ export function LiveOddsFeed() {
                         variant="outline"
                         size="sm"
                         className="flex flex-col items-center p-2 h-auto hover:border-primary hover:bg-primary/5 transition-all"
-                        onClick={() => addSelection({
+                        onClick={() => addBet({
                           eventId: event.id,
                           marketId: event.markets[0].id,
-                          selectionId: outcome.id,
-                          selection: `${event.homeTeam} vs ${event.awayTeam} - ${outcome.name}`,
-                          oddsValue: outcome.odds,
-                          marketName: event.markets[0].name,
+                          oddsId: outcome.id,
+                          event: `${event.homeTeam} vs ${event.awayTeam}`,
+                          league: event.league,
+                          market: event.markets[0].name,
+                          selection: outcome.name,
+                          odds: outcome.odds,
                         })}
                       >
                         <span className="text-xs mb-1 text-center line-clamp-1">{outcome.name}</span>
