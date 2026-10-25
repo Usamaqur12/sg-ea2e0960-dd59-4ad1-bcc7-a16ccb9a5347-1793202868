@@ -353,6 +353,25 @@ export default function Account() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Link href="/account/dashboard">
+              <Card className="surface hover:border-primary/30 transition-smooth cursor-pointer h-full">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-semibold mb-0.5">Dashboard</div>
+                        <div className="text-xs text-muted-foreground">Complete overview</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
             <Link href="/account/wallet">
               <Card className="surface hover:border-primary/30 transition-smooth cursor-pointer h-full">
                 <CardContent className="p-4">
