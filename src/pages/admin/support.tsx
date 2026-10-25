@@ -69,9 +69,9 @@ export default function AdminSupport() {
       ? await supabase.from("profiles").select("id, full_name, email").in("id", userIds)
       : { data: [], error: null };
     if (profileResult.error) { toast({ title: "Customer profiles load failed", description: profileResult.error.message, variant: "destructive" }); }
-    const profiles = new Map((profileResult.data ?? []).map((profile) => [profile.id, profile]));
+    const profiles = new Map((profileResult.data ?? []).map((profile: any) => [profile.id, profile]));
     setTickets(rawTickets.map((ticket) => {
-      const profile = profiles.get(ticket.user_id);
+      const profile = profiles.get(ticket.user_id) as any;
       return {
         id: ticket.id,
         userId: ticket.user_id,

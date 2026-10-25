@@ -109,9 +109,9 @@ export async function placeBet(
       if (priceError || !currentPrices || currentPrices.length !== selections.length) {
         return { success: false, error: "Current prices could not be verified", result: "rejected" as const };
       }
-      const byId = new Map(currentPrices.map((price) => [price.id, price]));
+      const byId = new Map(currentPrices.map((price: any) => [price.id, price]));
       acceptedSelections = selections.map((selection) => {
-        const price = byId.get(selection.oddsId);
+        const price = byId.get(selection.oddsId) as any;
         if (!price || !price.is_active || price.is_locked) throw new Error("A selection is suspended");
         const currentValue = Number(price.value);
         if (oddsAcceptance === "higher" && currentValue + 0.01 < selection.oddsValue) {

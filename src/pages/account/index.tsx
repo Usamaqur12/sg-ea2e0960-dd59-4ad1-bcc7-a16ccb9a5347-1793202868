@@ -123,7 +123,7 @@ export default function Account() {
       });
 
     // Update local state
-    setDismissedAnnouncements(prev => new Set([...prev, announcementId]));
+    setDismissedAnnouncements((prev: Set<string>) => new Set([...prev, announcementId]));
     setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
   }
 

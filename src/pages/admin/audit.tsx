@@ -47,9 +47,9 @@ export default function AuditLogs() {
     const rawLogs = logResult.data ?? [];
     const adminIds = [...new Set(rawLogs.map((log) => log.admin_id))];
     const profileResult = adminIds.length > 0 ? await supabase.from("profiles").select("id, email, full_name").in("id", adminIds) : { data: [], error: null };
-    const profiles = new Map((profileResult.data ?? []).map((profile) => [profile.id, profile]));
+    const profiles = new Map((profileResult.data ?? []).map((profile: any) => [profile.id, profile]));
     setAuditLogs(rawLogs.map((log) => {
-      const admin = profiles.get(log.admin_id);
+      const admin = profiles.get(log.admin_id) as any;
       return { id: log.id, timestamp: log.created_at ?? new Date().toISOString(), adminUser: admin?.email || admin?.full_name || log.admin_id, action: log.action, entity: log.entity_type, entityId: log.entity_id || "—", details: log.changes ? JSON.stringify(log.changes) : "No additional details", severity: severityFor(log.action) };
     }));
     setLoading(false);
