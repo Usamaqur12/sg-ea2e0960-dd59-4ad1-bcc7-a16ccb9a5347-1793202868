@@ -233,14 +233,38 @@ export default function SportsProvidersPage() {
         leagueRow = inserted.data;
       }
       const eventRecord = {
-        sport_id: sportRow.id, league_id: leagueRow.id, home_team: event.homeTeam, away_team: event.awayTeam,
-        start_time: event.startTime, status: event.status, provider_id: event.providerId,
-        provider_event_id: event.providerEventId, live_score_home: event.homeScore ?? null,
-        live_score_away: event.awayScore ?? null, live_minute: event.liveMinute ?? null, is_suspended: false,
+        sport_id: sportRow.id,
+        league_id: leagueRow.id,
+        home_team: event.homeTeam,
+        away_team: event.awayTeam,
+        start_time: event.startTime,
+        status: event.status,
+        provider_event_id: event.providerEventId,
+        live_score_home: event.homeScore ?? null,
+        live_score_away: event.awayScore ?? null,
+        live_minute: event.liveMinute ?? null,
+        is_suspended: false,
+        metadata: {
+          providerId: event.providerId,
+          source: "demo-provider-sync",
+          updateId: event.updateId ?? null,
+        },
       };
-      const { data: existing } = await (supabase as any).from("events").select("id").eq("provider_id", event.providerId).eq("provider_event_id", event.providerEventId).maybeSingle();
-      if (existing) await (supabase as any).from("events").update(eventRecord).eq("id", existing.id);
-      else await (supabase as any).from("events").insert(eventRecord);
+      const { data: existingRows } = await (supabase as any)
+        .from("events")
+        .select("id, metadata")
+        .eq("provider_event_id", event.providerEventId);
+
+      const existing = (existingRows || []).find(
+        (row: { id: string; metadata?: { providerId?: string } | null }) =>
+          row.metadata?.providerId === event.providerId
+      );
+
+      if (existing) {
+        await (supabase as any).from("events").update(eventRecord).eq("id", existing.id);
+      } else {
+        await (supabase as any).from("events").insert(eventRecord);
+      }
     }
   }
 

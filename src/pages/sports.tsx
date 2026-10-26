@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { SportsbookEvent, SportsbookOutcome } from "@/types/sportsbook";
 
-type ProfileSummary = { demo_balance: number };
+type ProfileSummary = { balance: number };
 
 export default function Sports() {
   const router = useRouter();
@@ -44,11 +44,11 @@ export default function Sports() {
 
   const loadProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
-      .from("profiles")
-      .select("demo_balance")
-      .eq("id", userId)
-      .single();
-    setProfile(data ? { demo_balance: Number(data.demo_balance) } : null);
+      .from("wallet_accounts")
+      .select("balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setProfile({ balance: Number(data?.balance ?? 0) });
   }, []);
 
   const loadEvents = useCallback(async () => {
@@ -222,7 +222,7 @@ export default function Sports() {
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
       <Header
-        user={profile ? { email: user?.email || "", balance: profile.demo_balance } : null}
+        user={profile ? { email: user?.email || "", balance: profile.balance } : null}
         onAuthClick={() => router.push("/auth/login")}
       />
 
@@ -342,7 +342,7 @@ export default function Sports() {
         }}
         onClear={betSlip.clearBets}
         onPlaceBet={handlePlaceBet}
-        balance={profile?.demo_balance || 0}
+        balance={profile?.balance || 0}
         isOpen={isMobileBetSlipOpen}
         onClose={() => setIsMobileBetSlipOpen(false)}
       />

@@ -56,11 +56,11 @@ export function SportsbookCataloguePage({
 
   const loadProfile = useCallback(async (userId: string) => {
     const { data } = await supabase
-      .from("profiles")
-      .select("demo_balance")
-      .eq("id", userId)
-      .single();
-    setBalance(data ? Number(data.demo_balance) : null);
+      .from("wallet_accounts")
+      .select("balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setBalance(Number(data?.balance ?? 0));
   }, []);
 
   const loadFavorites = useCallback(async (userId: string) => {
