@@ -65,9 +65,13 @@ export async function syncProvider(admin: any, provider: SportsProviderConfig, a
       })),
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message.slice(0, 500) : "Provider request failed";
+    const message = error instanceof Error
+      ? error.message.slice(0, 500)
+      : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+        ? error.message.slice(0, 500)
+        : "Provider request failed";
     await admin.from("sports_feed_providers").update({ status: "error", last_error: message, updated_at: new Date().toISOString() }).eq("id", provider.id);
-    throw error;
+    throw new Error(message);
   }
 }
 
