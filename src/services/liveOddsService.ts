@@ -242,42 +242,44 @@ export function useLiveOdds() {
 
   useEffect(() => {
     let isMounted = true;
-    let channel: RealtimeChannel | null = null;
+    const channel: RealtimeChannel = supabase
+      .channel("live-odds-feed-" + Date.now())
+      .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => {
+        void refreshEvents();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "markets" }, () => {
+        void refreshEvents();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "odds" }, () => {
+        void refreshEvents();
+      });
 
     async function initialize() {
       await refreshEvents();
 
-      channel = supabase
-        .channel("live-odds-feed")
-        .on("postgres_changes", { event: "*", schema: "public", table: "events" }, () => {
-          void refreshEvents();
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "markets" }, () => {
-          void refreshEvents();
-        })
-        .on("postgres_changes", { event: "*", schema: "public", table: "odds" }, () => {
-          void refreshEvents();
-        })
-        .subscribe((status) => {
-          if (!isMounted) {
-            return;
-          }
+      if (!isMounted) {
+        void supabase.removeChannel(channel);
+        return;
+      }
 
-          setConnected(status === "SUBSCRIBED");
+      channel.subscribe((status) => {
+        if (!isMounted) {
+          return;
+        }
 
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            setError("Realtime connection failed");
-          }
-        });
+        setConnected(status === "SUBSCRIBED");
+
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setError("Realtime connection failed");
+        }
+      });
     }
 
     void initialize();
 
     return () => {
       isMounted = false;
-      if (channel) {
-        void supabase.removeChannel(channel);
-      }
+      void supabase.removeChannel(channel);
     };
   }, [refreshEvents]);
 
