@@ -1745,6 +1745,74 @@ export type Database = {
         }
         Relationships: []
       }
+      sports_feed_providers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          encrypted_api_key: string | null
+          id: string
+          is_demo: boolean
+          is_enabled: boolean
+          last_error: string | null
+          last_event_count: number
+          last_success_at: string | null
+          last_sync_at: string | null
+          name: string
+          priority: number
+          provider_type: string
+          settings: Json
+          status: string
+          sync_interval_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          encrypted_api_key?: string | null
+          id?: string
+          is_demo?: boolean
+          is_enabled?: boolean
+          last_error?: string | null
+          last_event_count?: number
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          name: string
+          priority?: number
+          provider_type: string
+          settings?: Json
+          status?: string
+          sync_interval_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          encrypted_api_key?: string | null
+          id?: string
+          is_demo?: boolean
+          is_enabled?: boolean
+          last_error?: string | null
+          last_event_count?: number
+          last_success_at?: string | null
+          last_sync_at?: string | null
+          name?: string
+          priority?: number
+          provider_type?: string
+          settings?: Json
+          status?: string
+          sync_interval_seconds?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sports_feed_providers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_ticket_messages: {
         Row: {
           author_id: string
