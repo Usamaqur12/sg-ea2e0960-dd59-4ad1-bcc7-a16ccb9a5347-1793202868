@@ -35,7 +35,6 @@ export default function Home() {
   const betSlip = useBetSlip();
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<ProfileSummary | null>(null);
-  const [balance, setBalance] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
   const [sportsbookEvents, setSportsbookEvents] = useState<SportsbookEvent[]>([]);
@@ -55,21 +54,18 @@ export default function Home() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadProfile(session.user.id);
+        void loadProfile(session.user.id);
         void getUserFavoriteEventIds(session.user.id).then((result) => { if (!result.error) setFavorites(result.eventIds || []); });
-        void loadBalance(session.user.id);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadProfile(session.user.id);
+        void loadProfile(session.user.id);
         void getUserFavoriteEventIds(session.user.id).then((result) => { if (!result.error) setFavorites(result.eventIds || []); });
-        void loadBalance(session.user.id);
       } else {
         setProfile(null);
-        setBalance(null);
         setFavorites([]);
       }
     });
@@ -85,15 +81,6 @@ export default function Home() {
       .maybeSingle();
 
     setProfile({ balance: Number(data?.balance ?? 0) });
-  };
-
-  const loadBalance = async (userId: string) => {
-    const { data } = await supabase
-      .from("wallet_accounts")
-      .select("balance")
-      .eq("user_id", userId)
-      .maybeSingle();
-    setBalance(Number(data?.balance ?? 0));
   };
 
   function handleOddsClick(event: SportsbookEvent, outcome?: SportsbookOutcome, marketName = "Match Result") {
@@ -158,7 +145,7 @@ export default function Home() {
     if (!result.success) throw new Error(result.error || "Bet was rejected");
 
     betSlip.clearBets();
-    await loadBalance(user.id);
+    await loadProfile(user.id);
   }
 
   const liveEvents = sportsbookEvents.filter((event) => event.isLive).slice(0, 4);
@@ -225,7 +212,23 @@ export default function Home() {
           <div className="flex">
             {/* Center Content */}
             <div className="flex-1 p-2 md:p-3 space-y-4">
-              {sportsbookEvents.length === 0 ? (
+              {feedLoading ? (
+                <Card className="surface border-border">
+                  <div className="p-6 md:p-8 text-sm text-muted-foreground">Loading live fixtures…</div>
+                </Card>
+              ) : feedError ? (
+                <Card className="surface border-danger/30">
+                  <div className="p-6 md:p-8 space-y-2">
+                    <h2 className="text-lg font-black">Fixtures are unavailable right now</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Live data sync is connected, but the current sportsbook query could not load fixtures. You can still review completed matches in Results.
+                    </p>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href="/results">View Results</Link>
+                    </Button>
+                  </div>
+                </Card>
+              ) : sportsbookEvents.length === 0 ? (
                 <Card className="surface border-border">
                   <div className="p-6 md:p-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-2">
