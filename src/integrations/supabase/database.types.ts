@@ -567,6 +567,41 @@ export type Database = {
           },
         ]
       }
+      feed_updates: {
+        Row: {
+          event_id: string | null
+          id: string
+          payload: Json
+          provider_id: string
+          received_at: string
+          update_id: string
+        }
+        Insert: {
+          event_id?: string | null
+          id?: string
+          payload: Json
+          provider_id: string
+          received_at?: string
+          update_id: string
+        }
+        Update: {
+          event_id?: string | null
+          id?: string
+          payload?: Json
+          provider_id?: string
+          received_at?: string
+          update_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_updates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fraud_flags: {
         Row: {
           created_at: string
@@ -1379,6 +1414,38 @@ export type Database = {
           wagering_requirement?: number
         }
         Relationships: []
+      }
+      provider_event_map: {
+        Row: {
+          created_at: string
+          event_id: string
+          provider_event_id: string
+          provider_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          provider_event_id: string
+          provider_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          provider_event_id?: string
+          provider_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_event_map_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       provider_health: {
         Row: {
