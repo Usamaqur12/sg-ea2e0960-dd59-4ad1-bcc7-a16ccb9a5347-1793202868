@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureUserProfile } from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, AlertCircle, UserPlus, CheckCircle } from "lucide-react";
+
+type SuccessState = "idle" | "verify_email" | "active";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,7 +23,7 @@ export default function RegisterPage() {
   const [over18, setOver18] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [successState, setSuccessState] = useState<SuccessState>("idle");
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,25 +49,46 @@ export default function RegisterPage() {
     }
 
     try {
+      const emailRedirectTo =
+        typeof window !== "undefined" ? `${window.location.origin}/auth/login?confirmed=1` : undefined;
+
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: emailRedirectTo
+          ? {
+              emailRedirectTo,
+            }
+          : undefined,
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        throw authError;
+      }
 
-      setSuccess(true);
-      setTimeout(() => {
-        router.push("/");
-      }, 2000);
-    } catch (err: any) {
-      setError(err.message || "Failed to create account");
+      if (data.user && data.session) {
+        const profileError = await ensureUserProfile(data.user);
+        if (profileError) {
+          throw new Error(profileError.message);
+        }
+
+        setSuccessState("active");
+        window.setTimeout(() => {
+          void router.push("/");
+        }, 1500);
+      } else {
+        setSuccessState("verify_email");
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create account");
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
+  if (successState !== "idle") {
+    const isActiveSession = successState === "active";
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md bg-surface border-border text-center">
@@ -74,16 +98,25 @@ export default function RegisterPage() {
                 <CheckCircle className="h-8 w-8 text-success" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Account Created!</CardTitle>
+            <CardTitle className="text-2xl">{isActiveSession ? "Account created" : "Check your email"}</CardTitle>
             <CardDescription>
-              Your PrimeBet account has been created successfully with $10,000 demo balance.
+              {isActiveSession
+                ? "Your PrimeBet account is ready and your profile has been provisioned."
+                : "We sent a confirmation link to your email address. Confirm the email before signing in."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Redirecting you to the homepage...
+              {isActiveSession ? "Redirecting you to the homepage..." : "After confirmation, return to login to continue."}
             </p>
           </CardContent>
+          {!isActiveSession && (
+            <CardFooter className="justify-center">
+              <Link href="/auth/login" className="text-sm text-primary hover:underline font-medium">
+                Go to login
+              </Link>
+            </CardFooter>
+          )}
         </Card>
       </div>
     );
@@ -99,9 +132,7 @@ export default function RegisterPage() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>
-            Start with $10,000 demo balance
-          </CardDescription>
+          <CardDescription>Create your PrimeBet account to place live bets and manage your wallet.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="space-y-4">
@@ -192,13 +223,9 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90"
-              disabled={loading}
-            >
+            <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
               {loading ? (
-                "Creating Account..."
+                "Creating account..."
               ) : (
                 <>
                   <UserPlus className="h-4 w-4 mr-2" />
