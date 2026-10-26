@@ -100,16 +100,23 @@ export default function WalletPage() {
 
     setUser(user);
 
-    const { data: profile } = await supabase
+    const { data: profileData } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
-    if (profile) {
-      setProfile(profile);
-      await Promise.all([loadTransactions(user.id), loadBalances(), loadPaymentMethods(), loadWithdrawals(), loadWithdrawalAddresses()]);
-    }
+    setProfile(
+      profileData ?? {
+        id: user.id,
+        email: user.email ?? "",
+        full_name: user.user_metadata?.full_name ?? "Account",
+        kyc_status: "pending",
+        demo_balance: 0,
+      }
+    );
+
+    await Promise.all([loadTransactions(user.id), loadBalances(), loadPaymentMethods(), loadWithdrawals(), loadWithdrawalAddresses()]);
   }
 
   async function loadWithdrawals() {
@@ -248,7 +255,7 @@ export default function WalletPage() {
       setWithdrawalMessage(`Amount must be between $${Number(method.min_amount).toFixed(2)} and $${Number(method.max_amount).toFixed(2)}.`);
       return;
     }
-    if (amount > Number(walletBalances?.cash ?? profile?.demo_balance ?? 0)) { setWithdrawalMessage("Withdrawable cash balance is insufficient."); return; }
+    if (amount > Number(walletBalances?.cash ?? walletBalances?.available ?? 0)) { setWithdrawalMessage("Withdrawable cash balance is insufficient."); return; }
     if (!address) { setWithdrawalMessage("Select an active saved withdrawal destination."); return; }
     if (address.status === "blocked" || new Date(address.activates_at).getTime() > Date.now()) { setWithdrawalMessage(`This destination is cooling down until ${new Date(address.activates_at).toLocaleString()}.`); return; }
     setWithdrawalSubmitting(true); setWithdrawalMessage("");
@@ -285,7 +292,7 @@ export default function WalletPage() {
           profile
             ? {
                 email: user?.email || "",
-                balance: profile.demo_balance || 0,
+                balance: Number(walletBalances?.available ?? walletBalances?.cash ?? 0),
               }
             : null
         }
@@ -307,12 +314,12 @@ export default function WalletPage() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-muted-foreground mb-1">Available Demo Balance</div>
+                  <div className="text-sm text-muted-foreground mb-1">Available Balance</div>
                   <div className="text-4xl font-bold font-mono tabular-nums">
-                    ${(walletBalances?.available ?? profile?.demo_balance ?? 0).toFixed(2)}
+                    ${(walletBalances?.available ?? walletBalances?.cash ?? 0).toFixed(2)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    Play money for demo betting
+                    Live wallet funds available to bet
                   </div>
                 </div>
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -333,13 +340,12 @@ export default function WalletPage() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" />
-                Demo wallet
+                Wallet status
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                This balance is play money. Manual deposits and withdrawals use finance review plus a second-admin approval.
-                Real provider transfers remain disabled in this local build.
+                This page reflects live Supabase wallet balances and transaction history. Deposit and withdrawal options only become operational after finance enables payment method records for this database.
               </p>
             </CardContent>
           </Card>
