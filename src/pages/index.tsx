@@ -24,27 +24,40 @@ import Link from "next/link";
 import { getUserFavoriteEventIds, toggleFavorite as persistFavorite } from "@/services/favoritesService";
 import { LiveOddsFeed } from "@/components/sportsbook/LiveOddsFeed";
 
+type ProfileSummary = {
+  balance: number;
+};
+
 export default function Home() {
   const router = useRouter();
   const [selectedEvent, setSelectedEvent] = useState<SportsbookEvent | null>(null);
   const [showMarketsModal, setShowMarketsModal] = useState(false);
   const betSlip = useBetSlip();
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<ProfileSummary | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
   const [sportsbookEvents, setSportsbookEvents] = useState<SportsbookEvent[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
   const [mobileBetSlipOpen, setMobileBetSlipOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    void getSportsbookEvents({ limit: 24 }).then(({ events }) => setSportsbookEvents(events));
+    void getSportsbookEvents({ limit: 24 })
+      .then(({ events, error }) => {
+        setSportsbookEvents(events);
+        setFeedError(error ?? null);
+      })
+      .finally(() => setFeedLoading(false));
     
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         loadProfile(session.user.id);
         void getUserFavoriteEventIds(session.user.id).then((result) => { if (!result.error) setFavorites(result.eventIds || []); });
+        void loadBalance(session.user.id);
       }
     });
 
@@ -53,8 +66,10 @@ export default function Home() {
       if (session?.user) {
         loadProfile(session.user.id);
         void getUserFavoriteEventIds(session.user.id).then((result) => { if (!result.error) setFavorites(result.eventIds || []); });
+        void loadBalance(session.user.id);
       } else {
         setProfile(null);
+        setBalance(null);
         setFavorites([]);
       }
     });
@@ -64,14 +79,21 @@ export default function Home() {
 
   const loadProfile = async (userId: string) => {
     const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    
-    if (data) {
-      setProfile(data);
-    }
+      .from("wallet_accounts")
+      .select("balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    setProfile({ balance: Number(data?.balance ?? 0) });
+  };
+
+  const loadBalance = async (userId: string) => {
+    const { data } = await supabase
+      .from("wallet_accounts")
+      .select("balance")
+      .eq("user_id", userId)
+      .maybeSingle();
+    setBalance(Number(data?.balance ?? 0));
   };
 
   function handleOddsClick(event: SportsbookEvent, outcome?: SportsbookOutcome, marketName = "Match Result") {
@@ -136,7 +158,7 @@ export default function Home() {
     if (!result.success) throw new Error(result.error || "Bet was rejected");
 
     betSlip.clearBets();
-    await loadProfile(user.id);
+    await loadBalance(user.id);
   }
 
   const liveEvents = sportsbookEvents.filter((event) => event.isLive).slice(0, 4);
@@ -171,7 +193,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
       <Header
-        user={profile ? { email: user?.email || "", balance: profile.demo_balance || 0 } : null}
+        user={profile ? { email: user?.email || "", balance: profile.balance } : null}
         onAuthClick={handleAuthClick}
       />
 
@@ -203,110 +225,133 @@ export default function Home() {
           <div className="flex">
             {/* Center Content */}
             <div className="flex-1 p-2 md:p-3 space-y-4">
-              {/* Live Now */}
-              {liveEvents.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-danger live-pulse" />
-                      <h2 className="text-sm font-black">Live Now</h2>
-                      <Badge variant="destructive" className="h-4 text-[10px] px-1.5">
-                        {liveEvents.length}
-                      </Badge>
+              {sportsbookEvents.length === 0 ? (
+                <Card className="surface border-border">
+                  <div className="p-6 md:p-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <h2 className="text-lg font-black">No active betting events right now</h2>
+                      <p className="text-sm text-muted-foreground">
+                        The live score feed is connected and completed matches are available, but this provider does not publish bettable odds. Check verified final scores in Results or enable an odds-capable provider for active markets.
+                      </p>
                     </div>
-                     <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold hover:text-primary"><Link href="/live">View All →</Link></Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button asChild size="sm">
+                        <Link href="/results">View Results</Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href="/sports">Open Sportsbook</Link>
+                      </Button>
+                    </div>
                   </div>
-                  <div className="surface rounded-md overflow-hidden">
-                    {liveEvents.map((event, idx) => (
-                      <EventRow
-                        key={event.id}
-                        event={event}
-                        onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
-                        selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
-                        isFavorite={favorites.includes(event.id)}
-                        onToggleFavorite={() => toggleFavorite(event.id)}
-                        onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
-                      />
-                    ))}
-                  </div>
-                </section>
+                </Card>
+              ) : (
+                <>
+                  {liveEvents.length > 0 && (
+                    <section>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-danger live-pulse" />
+                          <h2 className="text-sm font-black">Live Now</h2>
+                          <Badge variant="destructive" className="h-4 text-[10px] px-1.5">
+                            {liveEvents.length}
+                          </Badge>
+                        </div>
+                         <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold hover:text-primary"><Link href="/live">View All →</Link></Button>
+                      </div>
+                      <div className="surface rounded-md overflow-hidden">
+                        {liveEvents.map((event, idx) => (
+                          <EventRow
+                            key={event.id}
+                            event={event}
+                            onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
+                            selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
+                            isFavorite={favorites.includes(event.id)}
+                            onToggleFavorite={() => toggleFavorite(event.id)}
+                            onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  <section>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="h-3.5 w-3.5 text-gold" />
+                        <h2 className="text-sm font-black">Top Events</h2>
+                      </div>
+                       <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold hover:text-primary"><Link href="/sports">View All →</Link></Button>
+                    </div>
+                    <div className="surface rounded-md overflow-hidden">
+                      <div className="px-3 py-1.5 bg-surface-elevated border-b border-border grid grid-cols-[1fr_auto] lg:grid-cols-[140px_1fr_auto] gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
+                        <span className="hidden lg:block">Time</span>
+                        <span>Match</span>
+                        <span className="text-right">1 X 2</span>
+                      </div>
+                      {topEvents.map((event) => (
+                        <EventRow
+                          key={event.id}
+                          event={event}
+                          onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
+                          selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
+                          isFavorite={favorites.includes(event.id)}
+                          onToggleFavorite={() => toggleFavorite(event.id)}
+                          onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
+                        />
+                      ))}
+                    </div>
+                  </section>
+
+                  {cricketEvents.length > 0 && (
+                    <section>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🏏</span>
+                          <h2 className="text-sm font-black">Cricket</h2>
+                          <Badge className="h-4 text-[10px] px-1.5 badge-popular">Popular</Badge>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {cricketEvents.map((event) => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
+                            onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
+                            selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
+                            isFavorite={favorites.includes(event.id)}
+                            onToggleFavorite={() => toggleFavorite(event.id)}
+                            onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {esportsEvents.length > 0 && (
+                    <section>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🎮</span>
+                          <h2 className="text-sm font-black">Esports</h2>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        {esportsEvents.map((event) => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
+                            onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
+                            selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
+                            isFavorite={favorites.includes(event.id)}
+                            onToggleFavorite={() => toggleFavorite(event.id)}
+                            onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </>
               )}
-
-              {/* Top Events - Information Dense Table */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="h-3.5 w-3.5 text-gold" />
-                    <h2 className="text-sm font-black">Top Events</h2>
-                  </div>
-                   <Button asChild variant="ghost" size="sm" className="h-6 px-2 text-[10px] font-bold hover:text-primary"><Link href="/sports">View All →</Link></Button>
-                </div>
-                <div className="surface rounded-md overflow-hidden">
-                  <div className="px-3 py-1.5 bg-surface-elevated border-b border-border grid grid-cols-[1fr_auto] lg:grid-cols-[140px_1fr_auto] gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wide">
-                    <span className="hidden lg:block">Time</span>
-                    <span>Match</span>
-                    <span className="text-right">1 X 2</span>
-                  </div>
-                  {topEvents.map((event) => (
-                    <EventRow
-                      key={event.id}
-                      event={event}
-                      onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
-                      selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
-                      isFavorite={favorites.includes(event.id)}
-                      onToggleFavorite={() => toggleFavorite(event.id)}
-                      onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
-                    />
-                  ))}
-                </div>
-              </section>
-
-              {/* Cricket */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🏏</span>
-                    <h2 className="text-sm font-black">Cricket</h2>
-                    <Badge className="h-4 text-[10px] px-1.5 badge-popular">Popular</Badge>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                  {cricketEvents.map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
-                      selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
-                      isFavorite={favorites.includes(event.id)}
-                      onToggleFavorite={() => toggleFavorite(event.id)}
-                      onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
-                    />
-                  ))}
-                </div>
-              </section>
-
-              {/* Esports */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🎮</span>
-                    <h2 className="text-sm font-black">Esports</h2>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                  {esportsEvents.map((event) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      onOddsClick={(_selection, _odds, outcome) => handleOddsClick(event, outcome)}
-                      selectedOdds={new Set(betSlip.bets.map(b => `${b.event}-${b.selection}`))}
-                      isFavorite={favorites.includes(event.id)}
-                      onToggleFavorite={() => toggleFavorite(event.id)}
-                      onOpenMarkets={() => { setSelectedEvent(event); setShowMarketsModal(true); }}
-                    />
-                  ))}
-                </div>
-              </section>
             </div>
 
             {/* Right Sidebar Widgets - Hidden on mobile, shown on large screens */}
@@ -416,7 +461,7 @@ export default function Home() {
         }}
         onClear={betSlip.clearBets}
         onPlaceBet={handlePlaceBet}
-        balance={profile?.demo_balance || 0}
+        balance={profile?.balance || 0}
         isOpen={mobileBetSlipOpen}
         onClose={() => setMobileBetSlipOpen(false)}
       />

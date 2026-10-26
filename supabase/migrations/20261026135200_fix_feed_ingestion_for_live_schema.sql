@@ -171,7 +171,7 @@ BEGIN
         'providerEventId', v_provider_event,
         'providerType', v_provider_type,
         'providerName', v_provider_name,
-        'source', 'feed_ingestion'
+        'source', 'score-feed'
       )
     )
     RETURNING id INTO v_event_id;
@@ -197,7 +197,7 @@ BEGIN
           'providerEventId', v_provider_event,
           'providerType', v_provider_type,
           'providerName', v_provider_name,
-          'source', 'feed_ingestion'
+          'source', 'score-feed'
         ),
         updated_at = now()
     WHERE id = v_event_id;
