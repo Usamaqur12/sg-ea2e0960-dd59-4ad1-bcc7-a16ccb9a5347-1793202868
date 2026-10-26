@@ -90,13 +90,9 @@ export default function AdminAnnouncements() {
     setProcessing(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
       const announcementData = {
         ...formData,
         expires_at: formData.expires_at || null,
-        created_by: user.id,
       };
 
       if (editingId) {
