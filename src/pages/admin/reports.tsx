@@ -80,19 +80,19 @@ export default function Reports() {
 
     if (bets) {
       setAllBets(bets);
-      const totalStakes = bets.reduce((sum, b) => sum + b.stake, 0);
+      const totalStakes = bets.reduce((sum, bet) => sum + Number(bet.stake ?? 0), 0);
       const totalPayouts = bets
-        .filter(b => b.status === "won")
-        .reduce((sum, b) => sum + (b.payout || 0), 0);
+        .filter((bet) => bet.status === "won")
+        .reduce((sum, bet) => sum + Number(bet.payout ?? 0), 0);
       const netRevenue = totalStakes - totalPayouts;
       const avgBetSize = bets.length > 0 ? totalStakes / bets.length : 0;
 
       setFinancialStats({ totalStakes, totalPayouts, netRevenue, avgBetSize });
 
       const totalBets = bets.length;
-      const pendingBets = bets.filter(b => b.status === "pending").length;
-      const settledBets = bets.filter(b => b.status !== "pending").length;
-      const wonBets = bets.filter(b => b.status === "won").length;
+      const pendingBets = bets.filter((bet) => bet.status === "pending").length;
+      const settledBets = bets.filter((bet) => bet.status !== "pending").length;
+      const wonBets = bets.filter((bet) => bet.status === "won").length;
       const winRate = settledBets > 0 ? (wonBets / settledBets) * 100 : 0;
 
       setBettingStats({ totalBets, pendingBets, settledBets, winRate });

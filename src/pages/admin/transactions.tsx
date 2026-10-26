@@ -18,10 +18,27 @@ type ReconciliationMismatch = {
   difference: number;
 };
 
+type TransactionProfile = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+};
+
+type TransactionRow = {
+  id: string;
+  user_id: string;
+  type: string;
+  amount: number;
+  description: string | null;
+  status: string;
+  created_at: string;
+  profile: TransactionProfile | null;
+};
+
 export default function AdminTransactions() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [reconciliation, setReconciliation] = useState<ReconciliationMismatch[]>([]);
@@ -75,20 +92,36 @@ export default function AdminTransactions() {
 
     const { data, error } = await supabase
       .from("wallet_transactions")
-      .select(`
-        *,
-        profiles!wallet_transactions_user_id_fkey (
-          id,
-          email,
-          full_name
-        )
-      `)
+      .select("id, user_id, type, amount, description, status, created_at")
       .order("created_at", { ascending: false })
       .limit(100);
 
-    if (data) {
-      setTransactions(data);
+    if (error) {
+      console.error("Error loading wallet transactions:", error);
+      setTransactions([]);
+      setLoading(false);
+      return;
     }
+
+    const userIds = [...new Set((data ?? []).map((transaction) => transaction.user_id))];
+    const { data: profileRows } = userIds.length
+      ? await supabase
+          .from("profiles")
+          .select("id, email, full_name")
+          .in("id", userIds)
+      : { data: [] };
+
+    const profileMap = new Map(
+      (profileRows ?? []).map((profile) => [profile.id, profile])
+    );
+
+    setTransactions(
+      (data ?? []).map((transaction) => ({
+        ...transaction,
+        amount: Number(transaction.amount ?? 0),
+        profile: profileMap.get(transaction.user_id) ?? null,
+      }))
+    );
 
     setLoading(false);
   }
@@ -97,8 +130,8 @@ export default function AdminTransactions() {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      tx.profiles?.email?.toLowerCase().includes(query) ||
-      tx.profiles?.full_name?.toLowerCase().includes(query) ||
+      tx.profile?.email?.toLowerCase().includes(query) ||
+      tx.profile?.full_name?.toLowerCase().includes(query) ||
       tx.description?.toLowerCase().includes(query)
     );
   });
@@ -107,9 +140,12 @@ export default function AdminTransactions() {
     switch (type) {
       case "deposit":
       case "bet_won":
+      case "bonus_awarded":
+      case "referral_bonus":
         return <ArrowDownLeft className="h-4 w-4 text-success" />;
       case "withdrawal":
-      case "bet_stake":
+      case "bet_placed":
+      case "bonus_wagered":
         return <ArrowUpRight className="h-4 w-4 text-danger" />;
       default:
         return <Receipt className="h-4 w-4 text-muted-foreground" />;
@@ -120,10 +156,13 @@ export default function AdminTransactions() {
     const typeMap: Record<string, { label: string; variant: string }> = {
       deposit: { label: "Deposit", variant: "success" },
       withdrawal: { label: "Withdrawal", variant: "warning" },
-      bet_stake: { label: "Bet Stake", variant: "secondary" },
+      bet_placed: { label: "Bet Placed", variant: "secondary" },
       bet_won: { label: "Bet Won", variant: "success" },
       bet_lost: { label: "Bet Lost", variant: "destructive" },
-      bet_void: { label: "Bet Void", variant: "outline" },
+      bonus_awarded: { label: "Bonus Awarded", variant: "outline" },
+      bonus_wagered: { label: "Bonus Wagered", variant: "secondary" },
+      referral_bonus: { label: "Referral Bonus", variant: "outline" },
+      adjustment: { label: "Adjustment", variant: "outline" },
     };
 
     const config = typeMap[type] || { label: type, variant: "outline" };
@@ -135,20 +174,20 @@ export default function AdminTransactions() {
   };
 
   const totalDeposits = transactions
-    .filter(tx => tx.type === "deposit")
-    .reduce((sum, tx) => sum + tx.amount, 0);
+    .filter((tx) => tx.type === "deposit")
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
   const totalWithdrawals = transactions
-    .filter(tx => tx.type === "withdrawal")
-    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    .filter((tx) => tx.type === "withdrawal")
+    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0);
 
   const totalBetStakes = transactions
-    .filter(tx => tx.type === "bet_stake")
-    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+    .filter((tx) => tx.type === "bet_placed")
+    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0);
 
   const totalPayouts = transactions
-    .filter(tx => tx.type === "bet_won")
-    .reduce((sum, tx) => sum + tx.amount, 0);
+    .filter((tx) => tx.type === "bet_won")
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
   return (
     <AdminLayout>
@@ -294,7 +333,7 @@ export default function AdminTransactions() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium text-sm truncate">
-                            {tx.profiles?.full_name || tx.profiles?.email || "Unknown User"}
+                            {tx.profile?.full_name || tx.profile?.email || "Unknown User"}
                           </span>
                           {getTypeBadge(tx.type)}
                         </div>

@@ -92,13 +92,18 @@ export default function AdminMonitoring() {
         .limit(10);
       setFailedSettlements(failedJobs || []);
 
-      const { data: errors } = await (supabase as any)
+      const { data: errors, error: errorEventsError } = await (supabase as any)
         .from("error_events")
         .select("id,severity,source,message,route,created_at,resolved_at")
         .is("resolved_at", null)
         .order("created_at", { ascending: false })
         .limit(20);
-      setErrorEvents(errors || []);
+
+      if (errorEventsError) {
+        setErrorEvents([]);
+      } else {
+        setErrorEvents(errors || []);
+      }
 
       // System stats
       const now = new Date();
@@ -228,7 +233,7 @@ export default function AdminMonitoring() {
                         className="flex items-center justify-between p-4 border border-border rounded-lg"
                       >
                         <div className="flex items-center gap-4">
-                          {feed.status === "healthy" ? (
+                          {feed.status === "active" || feed.status === "healthy" ? (
                             <CheckCircle className="h-5 w-5 text-success" />
                           ) : feed.status === "degraded" ? (
                             <AlertTriangle className="h-5 w-5 text-warning" />
@@ -245,20 +250,22 @@ export default function AdminMonitoring() {
                         <div className="text-right">
                           <Badge
                             variant={
-                              feed.status === "healthy"
+                              feed.status === "active" || feed.status === "healthy"
                                 ? "default"
                                 : feed.status === "degraded"
                                 ? "outline"
-                                : "destructive"
+                                : feed.status === "error"
+                                ? "destructive"
+                                : "secondary"
                             }
                           >
                             {feed.status}
                           </Badge>
-                          {feed.latency_ms && (
+                          {feed.avg_latency_ms ? (
                             <p className="text-sm text-muted-foreground mt-1">
-                              Latency: {feed.latency_ms}ms
+                              Latency: {feed.avg_latency_ms}ms
                             </p>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     ))}

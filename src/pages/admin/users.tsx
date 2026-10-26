@@ -31,7 +31,7 @@ interface User {
   id: string;
   email: string;
   full_name: string;
-  demo_balance: number;
+  wallet_balance: number;
   kyc_status: string;
   is_suspended: boolean;
   suspension_reason: string | null;
@@ -60,9 +60,9 @@ export default function AdminUsers() {
 
   async function loadUsers() {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: profileRows, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, demo_balance, kyc_status, is_suspended, suspension_reason, created_at")
+      .select("id, email, full_name, kyc_status, is_suspended, suspension_reason, created_at")
       .eq("is_admin", false)
       .order("created_at", { ascending: false });
 
@@ -73,9 +73,29 @@ export default function AdminUsers() {
         description: "Failed to load users",
         variant: "destructive",
       });
-    } else {
-      setUsers(data || []);
+      setUsers([]);
+      setLoading(false);
+      return;
     }
+
+    const userIds = (profileRows ?? []).map((profile) => profile.id);
+    const { data: walletRows } = userIds.length
+      ? await supabase
+          .from("wallet_accounts")
+          .select("user_id, balance")
+          .in("user_id", userIds)
+      : { data: [] };
+
+    const balanceMap = new Map(
+      (walletRows ?? []).map((wallet) => [wallet.user_id, Number(wallet.balance ?? 0)])
+    );
+
+    setUsers(
+      (profileRows ?? []).map((profile) => ({
+        ...profile,
+        wallet_balance: balanceMap.get(profile.id) ?? 0,
+      }))
+    );
     setLoading(false);
   }
 
@@ -283,7 +303,7 @@ export default function AdminUsers() {
                           </TableCell>
                           <TableCell className="font-mono text-xs">{user.email}</TableCell>
                           <TableCell className="font-mono font-semibold">
-                            ${user.demo_balance?.toFixed(2) || "0.00"}
+                            ${Number(user.wallet_balance ?? 0).toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Badge
