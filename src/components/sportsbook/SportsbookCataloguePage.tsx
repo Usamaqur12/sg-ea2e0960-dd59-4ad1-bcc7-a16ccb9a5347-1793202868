@@ -267,10 +267,19 @@ export function SportsbookCataloguePage({
                 <Button size="sm" onClick={() => void loadEvents()}>Try again</Button>
               </div>
             ) : groupedEvents.length === 0 ? (
-              <div className="surface rounded-md p-10 text-center">
-                <p className="font-semibold mb-1">No matching events</p>
-                <p className="text-sm text-muted-foreground">Try another search, view or sorting option.</p>
-              </div>
+              events.length === 0 ? (
+                <div className="surface rounded-md p-10 text-center">
+                  <p className="font-semibold mb-1">Live events not synced yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    The sportsbook is connected to the live database, but no active event records are available yet. Refresh after the feed sync completes or ask an admin to run a provider sync.
+                  </p>
+                </div>
+              ) : (
+                <div className="surface rounded-md p-10 text-center">
+                  <p className="font-semibold mb-1">No matching events</p>
+                  <p className="text-sm text-muted-foreground">Try another search, view or sorting option.</p>
+                </div>
+              )
             ) : (
               groupedEvents.map(([league, leagueEvents]) => (
                 <section key={league}>

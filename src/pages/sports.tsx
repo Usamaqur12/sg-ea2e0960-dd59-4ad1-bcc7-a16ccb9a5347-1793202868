@@ -270,12 +270,21 @@ export default function Sports() {
                 <Button size="sm" onClick={() => void loadEvents()}>Try again</Button>
               </div>
             ) : groupedEvents.length === 0 ? (
-              <div className="surface rounded-md p-10 text-center">
-                <p className="font-semibold mb-1">No matching events</p>
-                <p className="text-sm text-muted-foreground">
-                  Try another search, sport, view or sorting option.
-                </p>
-              </div>
+              events.length === 0 ? (
+                <div className="surface rounded-md p-10 text-center">
+                  <p className="font-semibold mb-1">No live sportsbook data yet</p>
+                  <p className="text-sm text-muted-foreground">
+                    Live sportsbook tables are connected, but no active events are available right now. Refresh after the next provider sync or check back once new fixtures are imported.
+                  </p>
+                </div>
+              ) : (
+                <div className="surface rounded-md p-10 text-center">
+                  <p className="font-semibold mb-1">No matching events</p>
+                  <p className="text-sm text-muted-foreground">
+                    Try another search, sport, view or sorting option.
+                  </p>
+                </div>
+              )
             ) : (
               groupedEvents.map(([group, groupEvents]) => {
                 const [sport, league] = group.split("|");
