@@ -73,16 +73,26 @@ export default function SupportPage() {
       .eq("id", authUser.id)
       .single();
 
-    if (profileData) {
-      setProfile(profileData);
-      await loadTickets();
-    }
+    setProfile(
+      profileData ?? {
+        email: authUser.email ?? "",
+        full_name: authUser.user_metadata?.full_name ?? "Account",
+      }
+    );
+
+    await loadTickets();
   }
 
   async function loadTickets() {
     const result = await getUserTickets();
     if (result.success) {
       setTickets(result.tickets);
+    } else {
+      toast({
+        title: "Support tickets unavailable",
+        description: result.error || "Could not load your tickets",
+        variant: "destructive",
+      });
     }
     setLoading(false);
   }
@@ -123,7 +133,7 @@ export default function SupportPage() {
     const result = await addTicketMessage(selectedTicket.id, newMessage);
     
     if (result.success && result.message) {
-      setMessages([...messages, result.message]);
+      setMessages((prev) => [...prev, result.message]);
       setNewMessage("");
       toast({ title: "Message sent" });
     } else {
@@ -179,7 +189,7 @@ export default function SupportPage() {
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
       <Header
-        user={profile ? { email: user?.email || "", balance: profile.demo_balance || 0 } : null}
+        user={user ? { email: profile?.email || user.email || "", balance: 0 } : null}
         onAuthClick={() => router.push("/auth/login")}
       />
 
