@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trophy, PlayCircle, Clock, Receipt } from "lucide-react";
+import { Trophy, PlayCircle, Clock, Receipt, CheckCircle } from "lucide-react";
 import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ import type { SportsbookEvent, SportsbookOutcome } from "@/types/sportsbook";
 import Link from "next/link";
 import { getUserFavoriteEventIds, toggleFavorite as persistFavorite } from "@/services/favoritesService";
 import { LiveOddsFeed } from "@/components/sportsbook/LiveOddsFeed";
+import { SEO } from "@/components/ui/seo";
 
 type ProfileSummary = {
   balance: number;
@@ -179,6 +180,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
+      <SEO 
+        title="Premier Sports Betting & Casino"
+        description="Experience the thrill of sports betting and casino games with PrimeBet. Live odds, instant payouts, and 24/7 support."
+      />
+
       <Header
         user={profile ? { email: user?.email || "", balance: profile.balance } : null}
         onAuthClick={handleAuthClick}
