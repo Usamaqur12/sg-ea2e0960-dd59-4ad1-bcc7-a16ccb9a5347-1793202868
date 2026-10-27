@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle, ShieldCheck } from "lucide-react";
 
 export default function AdminLogin() {
   const router = useRouter();
@@ -21,32 +21,47 @@ export default function AdminLogin() {
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (signInError) throw signInError;
       if (!data.user) throw new Error("Authentication failed");
 
-      // 2FA requirement removed - redirect directly to admin portal
+      // Check admin status
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_admin, is_suspended")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      if (!profile?.is_admin || profile.is_suspended) {
+        await supabase.auth.signOut();
+        throw new Error("Admin access denied");
+      }
+
+      // Redirect to admin portal - no 2FA check
       await router.push("/admin");
     } catch (err: any) {
-      setError(err.message || "Invalid credentials");
-    } finally {
+      setError(err.message || "Login failed");
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md border-border">
         <CardHeader className="space-y-1 text-center">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-            <ShieldCheck className="h-6 w-6 text-primary" />
+          <div className="flex justify-center mb-4">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
           </div>
-          <CardTitle className="text-2xl font-black">Admin Portal</CardTitle>
+          <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
           <CardDescription>
-            Sign in to access the admin dashboard
+            Enter your credentials to access the admin dashboard
           </CardDescription>
         </CardHeader>
 
@@ -64,11 +79,12 @@ export default function AdminLogin() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                autoFocus
+                placeholder="admin@example.com"
                 required
+                disabled={loading}
                 className="h-11"
               />
             </div>
@@ -78,9 +94,12 @@ export default function AdminLogin() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
                 required
+                disabled={loading}
                 className="h-11"
               />
             </div>
