@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { requireAdminApi } from "@/lib/server/requireAdminApi";
+import { hasAccess } from "@/lib/adminRoles";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { z } from "zod";
-import { adminApiError, requireAdminApi } from "@/lib/server/requireAdminApi";
+import { adminApiError } from "@/lib/server/requireAdminApi";
 import { decryptProviderSecret } from "@/lib/server/providerSecrets";
 import { fetchProviderEvents, type NormalizedSportsEvent, type SportsProviderConfig } from "@/lib/server/sportsProviders";
 
@@ -85,14 +88,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const parsedId = z.string().uuid().safeParse(req.query.id);
     const parsedAction = actionSchema.safeParse(req.body);
     if (!parsedId.success || !parsedAction.success) return res.status(400).json({ error: "Invalid provider action" });
-    const { admin, user } = await requireAdminApi(req, "sports");
-    const { data, error } = await (admin as any).from("sports_feed_providers").select("*").eq("id", parsedId.data).single();
+    const adminAuth = await requireAdminApi(req, res);
+    if (!adminAuth) return;
+
+    if (!hasAccess(adminAuth.adminRole, "sports_management")) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    const { data, error } = await (adminAuth as any).from("sports_feed_providers").select("*").eq("id", parsedId.data).single();
     if (error || !data) return res.status(404).json({ error: "Provider not found" });
     if (parsedAction.data.action === "sync" && !data.is_enabled) return res.status(409).json({ error: "Enable the provider before syncing" });
 
-    const result = await syncProvider(admin as any, data as SportsProviderConfig, parsedAction.data.action);
-    await (admin as any).from("audit_logs").insert({
-      admin_id: user.id,
+    const result = await syncProvider(adminAuth as any, data as SportsProviderConfig, parsedAction.data.action);
+    await (adminAuth as any).from("audit_logs").insert({
+      admin_id: adminAuth.userId,
       action: `sports_provider_${parsedAction.data.action}`,
       entity_type: "sports_provider",
       entity_id: data.id,
@@ -106,3 +115,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 }
 
+} else if (action === "disable") {
+  const { data, error } = await supabaseAdmin
+    .from("sports_providers")
+    .update({ enabled: false, last_modified_by: adminAuth.userId })
+}
