@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, Lock, Mail, AlertCircle } from "lucide-react";
 import { isAdminRole } from "@/lib/adminRoles";
-import { DEMO_ADMIN_EMAIL, DEMO_ADMIN_PASSWORD, DEMO_BACKEND_ENABLED } from "@/integrations/supabase/demoClient";
 
 export default function AdminLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState(DEMO_BACKEND_ENABLED ? DEMO_ADMIN_EMAIL : "");
-  const [password, setPassword] = useState(DEMO_BACKEND_ENABLED ? DEMO_ADMIN_PASSWORD : "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
@@ -97,9 +97,13 @@ export default function AdminLogin() {
       }
 
       const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (assurance.error || assurance.data.nextLevel !== "aal2") {
-        await supabase.auth.signOut();
-        setError("Admin accounts must enable authenticator-app 2FA in Account Settings before using the admin portal.");
+      if (assurance.error) {
+        setError(assurance.error.message);
+        setLoading(false);
+        return;
+      }
+      if (assurance.data.nextLevel !== "aal2") {
+        setError("Authenticator-app 2FA is required. Open Account Settings, select Security, and set up an authenticator before returning here.");
         setLoading(false);
         return;
       }
@@ -143,12 +147,6 @@ export default function AdminLogin() {
           </p>
         </CardHeader>
         <CardContent>
-          {DEMO_BACKEND_ENABLED && (
-            <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-3 text-sm">
-              <p className="font-semibold text-primary">Demo admin enabled</p>
-              <p className="mt-1 text-xs text-muted-foreground">Credentials are prefilled. Demo changes are stored only in this browser.</p>
-            </div>
-          )}
           <form onSubmit={mfaFactorId ? handleMfa : handleLogin} className="space-y-4">
             {error && (
               <div className="p-3 rounded bg-danger/10 border border-danger/30 flex items-start gap-2">
@@ -205,6 +203,9 @@ export default function AdminLogin() {
               <p className="text-xs text-muted-foreground">
                 This is a secure area. Unauthorized access is prohibited.
               </p>
+              <Link href="/account/settings" className="mt-2 inline-block text-xs text-primary underline">
+                Set up 2FA in Account Settings → Security
+              </Link>
             </div>
           </form>
         </CardContent>
