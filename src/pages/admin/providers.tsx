@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle, Wand2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,7 @@ export default function SportsProvidersPage() {
   const [sport, setSport] = useState("soccer");
   const [syncInterval, setSyncInterval] = useState("10");
   const [enabled, setEnabled] = useState(false);
+  const [generatingMarkets, setGeneratingMarkets] = useState(false);
 
   useEffect(() => { void loadProviders(); }, []);
 
@@ -268,6 +269,44 @@ export default function SportsProvidersPage() {
     }
   }
 
+  async function handleGenerateMarkets() {
+    if (!confirm("Generate mock betting markets for all imported fixtures without odds?")) return;
+
+    setGeneratingMarkets(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      const response = await fetch("/api/admin/generate-markets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ generateForAll: true, includeAdvanced: true }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || "Failed to generate markets");
+
+      toast({
+        title: "Markets Generated",
+        description: `Created ${result.marketsCreated} markets with ${result.oddsCreated} odds for ${result.eventsProcessed} fixtures`,
+      });
+
+      await loadProviders();
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Could not generate markets",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingMarkets(false);
+    }
+  }
+
   async function runAction(provider: ProviderRecord, action: "test" | "sync") {
     setWorkingId(provider.id);
     setResult(null);
@@ -304,9 +343,25 @@ export default function SportsProvidersPage() {
   return (
     <AdminLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold"><Radio className="h-6 w-6 text-primary" />Live Score Providers</h1>
-          <p className="text-sm text-muted-foreground">Add, test, disable, sync or remove sports data connections. API keys stay server-side and encrypted.</p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-black">Sports Feed Providers</h1>
+            <p className="text-sm text-muted-foreground">Configure and monitor sports data providers</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleGenerateMarkets}
+              disabled={generatingMarkets}
+              variant="outline"
+              size="sm"
+            >
+              <Wand2 className="h-4 w-4 mr-2" />
+              {generatingMarkets ? "Generating..." : "Generate Mock Markets"}
+            </Button>
+            <Button onClick={() => router.push("/admin")} variant="outline" size="sm">
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
 
         {DEMO_BACKEND_ENABLED && (
