@@ -14,8 +14,8 @@ interface MatchResult {
   id: string;
   home_team: string;
   away_team: string;
-  home_score: number | null;
-  away_score: number | null;
+  live_score_home: number | null;
+  live_score_away: number | null;
   status: string;
   start_time: string;
   sport: { name: string };
@@ -106,8 +106,8 @@ export default function Results() {
           id,
           home_team,
           away_team,
-          home_score,
-          away_score,
+          live_score_home,
+          live_score_away,
           status,
           start_time,
           sport:sports(name),
@@ -207,10 +207,10 @@ export default function Results() {
       const userIds = Array.from(userStats.keys());
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, username")
-        .in("user_id", userIds);
+        .select("id, username")
+        .in("id", userIds);
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.username || "Anonymous"]) || []);
+      const profileMap = new Map(profiles?.map(p => [p.id, p.username || "Anonymous"]) || []);
 
       // Build leaderboard entries
       const entries: LeaderboardEntry[] = Array.from(userStats.entries()).map(([userId, stats]) => ({
@@ -253,7 +253,7 @@ export default function Results() {
   function getResultBadge(result: MatchResult) {
     if (result.status === "cancelled") return <Badge variant="outline">Cancelled</Badge>;
     if (result.status === "postponed") return <Badge variant="secondary">Postponed</Badge>;
-    if (result.home_score === null || result.away_score === null) {
+    if (result.live_score_home === null || result.live_score_away === null) {
       return <Badge variant="secondary">No Score</Badge>;
     }
     return null;
@@ -350,14 +350,14 @@ export default function Results() {
                         </div>
 
                         <div className="flex items-center gap-2 px-4">
-                          {result.status === "finished" && result.home_score !== null && result.away_score !== null ? (
+                          {result.status === "finished" && result.live_score_home !== null && result.live_score_away !== null ? (
                             <>
-                              <span className={`text-2xl font-black ${result.home_score > result.away_score ? "text-success" : ""}`}>
-                                {result.home_score}
+                              <span className={`text-2xl font-black ${result.live_score_home > result.live_score_away ? "text-success" : ""}`}>
+                                {result.live_score_home}
                               </span>
                               <span className="text-muted-foreground">-</span>
-                              <span className={`text-2xl font-black ${result.away_score > result.home_score ? "text-success" : ""}`}>
-                                {result.away_score}
+                              <span className={`text-2xl font-black ${result.live_score_away > result.live_score_home ? "text-success" : ""}`}>
+                                {result.live_score_away}
                               </span>
                             </>
                           ) : (
