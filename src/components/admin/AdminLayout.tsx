@@ -1,32 +1,21 @@
-import { useState, useEffect, ReactNode } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { 
-  LayoutDashboard, Users, FileCheck, TrendingUp, Trophy, Wallet, 
-  Gift, Headphones, FileText, ChevronLeft, ChevronRight,
-  LogOut, Shield, AlertTriangle, Activity, SlidersHorizontal, Megaphone, Handshake,
-  Menu, X, Bitcoin, CreditCard, Radio, Wrench, Rocket, Dices
+  LayoutDashboard, Users, Receipt, CreditCard, Gift, 
+  MessageSquare, AlertTriangle, BarChart3, Shield,
+  FileText, TrendingUp, Megaphone, Building2, Gamepad2,
+  Settings, LogOut, Bitcoin, LineChart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
-import { canAccessAdminArea, isAdminRole, type AdminArea } from "@/lib/adminRoles";
-import { DEMO_BACKEND_ENABLED } from "@/integrations/supabase/demoClient";
 
-interface AdminLayoutProps {
-  children: ReactNode;
-}
-
-export function AdminLayout({ children }: AdminLayoutProps) {
+export function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { toast } = useToast();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userRole, setUserRole] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
   const [adminRole, setAdminRole] = useState<string>("admin");
+  const { toast } = useToast();
 
   useEffect(() => {
     async function checkAuth() {
@@ -67,148 +56,95 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     router.push("/admin/login");
   }
 
-  const menuItems: Array<{ icon: typeof LayoutDashboard; label: string; href: string; area: AdminArea }> = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/admin", area: "dashboard" },
-    { icon: Users, label: "Users", href: "/admin/users", area: "users" },
-    { icon: FileCheck, label: "KYC Approvals", href: "/admin/kyc", area: "kyc" },
-    { icon: TrendingUp, label: "Bets", href: "/admin/bets", area: "bets" },
-    { icon: Trophy, label: "Sports & Events", href: "/admin/sports", area: "sports" },
-    { icon: Radio, label: "Live Score Providers", href: "/admin/providers", area: "sports" },
-    { icon: SlidersHorizontal, label: "Trading Control", href: "/admin/trading", area: "trading" },
-    { icon: Wallet, label: "Transactions", href: "/admin/transactions", area: "transactions" },
-    { icon: CreditCard, label: "Payment Methods", href: "/admin/payments", area: "payments" },
-    { icon: Bitcoin, label: "Crypto Reconciliation", href: "/admin/crypto", area: "crypto" },
-    { icon: Handshake, label: "Brokers & Agents", href: "/admin/brokers", area: "brokers" },
-    { icon: Dices, label: "Casino Catalogue", href: "/admin/casino", area: "casino" },
-    { icon: Gift, label: "Promotions", href: "/admin/promotions", area: "promotions" },
-    { icon: Headphones, label: "Support Tickets", href: "/admin/support", area: "support" },
-    { icon: Shield, label: "Risk Management", href: "/admin/risk", area: "risk" },
-    { icon: Activity, label: "Monitoring", href: "/admin/monitoring", area: "monitoring" },
-    { icon: Rocket, label: "Launch Readiness", href: "/admin/readiness", area: "monitoring" },
-    { icon: Megaphone, label: "Announcements", href: "/admin/announcements", area: "announcements" },
-    { icon: FileText, label: "Reports", href: "/admin/reports", area: "reports" },
-    { icon: AlertTriangle, label: "Audit Logs", href: "/admin/audit", area: "audit" },
-    { icon: Wrench, label: "Feature Controls", href: "/admin/features", area: "audit" },
-  ];
-
-  const visibleItems = menuItems.filter(item => canAccessAdminArea(userRole, item.area));
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <Shield className="h-12 w-12 text-primary mx-auto mb-3 animate-pulse" />
-          <p className="text-sm text-muted-foreground">Verifying admin access...</p>
-        </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
+  const navigation = [
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Users", href: "/admin/users", icon: Users },
+    { name: "KYC", href: "/admin/kyc", icon: Shield },
+    { name: "Bets", href: "/admin/bets", icon: Receipt },
+    { name: "Sports", href: "/admin/sports", icon: LineChart },
+    { name: "Transactions", href: "/admin/transactions", icon: CreditCard },
+    { name: "Payments", href: "/admin/payments", icon: CreditCard },
+    { name: "Crypto", href: "/admin/crypto", icon: Bitcoin },
+    { name: "Promotions", href: "/admin/promotions", icon: Gift },
+    { name: "Support", href: "/admin/support", icon: MessageSquare },
+    { name: "Risk", href: "/admin/risk", icon: AlertTriangle },
+    { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+    { name: "Audit", href: "/admin/audit", icon: FileText },
+    { name: "Monitoring", href: "/admin/monitoring", icon: TrendingUp },
+    { name: "Trading", href: "/admin/trading", icon: TrendingUp },
+    { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
+    { name: "Brokers", href: "/admin/brokers", icon: Building2 },
+    { name: "Casino", href: "/admin/casino", icon: Gamepad2 },
+    { name: "Providers", href: "/admin/providers", icon: Settings },
+    { name: "Readiness", href: "/admin/readiness", icon: Shield },
+  ];
+
   return (
-    <div className="min-h-screen flex bg-background">
-      {mobileOpen && (
-        <button
-          type="button"
-          aria-label="Close admin navigation"
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+    <div className="min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 border-r border-border bg-surface flex flex-col transition-all duration-300 lg:static lg:z-auto",
-        mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
-        collapsed ? "w-64 lg:w-16" : "w-64"
-      )}>
-        {/* Header */}
-        <div className="h-16 border-b border-border flex items-center justify-between px-4">
-          {!collapsed && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <span className="text-sm font-bold text-white">PB</span>
+      <div className="fixed inset-y-0 left-0 w-64 bg-card border-r border-border">
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="p-6 border-b border-border">
+            <Link href="/admin" className="text-2xl font-bold text-primary">
+              PrimeBet Admin
+            </Link>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              const isActive = router.pathname === item.href;
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* User info & logout */}
+          <div className="p-4 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm">
+                <div className="font-medium text-foreground">Admin</div>
+                <div className="text-xs text-muted-foreground capitalize">{adminRole}</div>
               </div>
-              <span className="font-bold">Admin Panel</span>
             </div>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="ml-auto hidden lg:inline-flex"
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="icon" className="ml-auto lg:hidden" onClick={() => setMobileOpen(false)} aria-label="Close navigation">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-1">
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = router.pathname === item.href;
-            
-            return (
-              <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
-                <div className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                  isActive 
-                    ? "bg-primary text-primary-foreground" 
-                    : "hover:bg-background text-muted-foreground hover:text-foreground",
-                  collapsed && "justify-center"
-                )}>
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-                </div>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* User Info */}
-        <div className="border-t border-border p-3">
-          <div className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg bg-background",
-            collapsed && "justify-center"
-          )}>
-            <Shield className="h-5 w-5 text-gold flex-shrink-0" />
-            {!collapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate capitalize">{userRole.replace(/_/g, " ")}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-              </div>
-            )}
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
-          
-          <Button
-            variant="ghost"
-            className={cn(
-              "w-full mt-2 justify-start gap-3 text-danger hover:text-danger hover:bg-danger/10",
-              collapsed && "justify-center px-0"
-            )}
-            onClick={handleLogout}
-          >
-            <LogOut className="h-5 w-5" />
-            {!collapsed && <span>Logout</span>}
-          </Button>
         </div>
-      </aside>
+      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-h-screen overflow-auto">
-        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur lg:hidden">
-          <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)} aria-label="Open admin navigation">
-            <Menu className="h-5 w-5" />
-          </Button>
-          <div className="flex items-center gap-2 font-bold"><span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-xs text-primary-foreground">PB</span> Admin</div>
-          <span className="ml-auto text-xs capitalize text-muted-foreground">{userRole.replace(/_/g, " ")}</span>
-        </div>
-        {DEMO_BACKEND_ENABLED && (
-          <div className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-center text-xs font-medium text-warning">
-            Demo admin environment — browser-local data only; no real money or production actions.
-          </div>
-        )}
+      {/* Main content */}
+      <div className="ml-64 p-8">
         {children}
       </div>
     </div>
