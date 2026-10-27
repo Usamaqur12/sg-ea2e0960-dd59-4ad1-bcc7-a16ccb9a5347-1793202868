@@ -1,82 +1,63 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isAdminRole } from "./src/lib/adminRoles";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isApi = pathname.startsWith("/api/admin/");
 
-  // Only protect /admin routes (pages and API endpoints)
-  if (!pathname.startsWith("/admin")) {
-    return NextResponse.next();
-  }
-
-  // Allow admin login page
   if (pathname === "/admin/login") {
     return NextResponse.next();
   }
 
   let response = NextResponse.next({ request });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Create Supabase client
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
+  if (!url || !key) {
+    return isApi
+      ? NextResponse.json({ error: "Admin authentication unavailable" }, { status: 503 })
+      : NextResponse.redirect(new URL("/admin/login", request.url));
+  }
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+      },
+    },
+  });
 
-  // Check authentication
-  const { data: { session } } = await supabase.auth.getSession();
-
-  if (!session) {
-    // Not authenticated - redirect to admin login
-    const url = new URL("/admin/login", request.url);
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    if (isApi) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    const loginUrl = new URL("/admin/login", request.url);
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
-  // Check if user is admin
-  // In demo mode, check for demo admin email
-  const isDemoMode = process.env.NEXT_PUBLIC_ENABLE_DEMO_BACKEND === "true";
-  const isDemoAdmin = isDemoMode && session.user.email === "admin@primebet.demo";
-
-  if (isDemoAdmin) {
-    return response;
-  }
-
-  // Check real admin role from database
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("role, admin_role")
-    .eq("id", session.user.id)
-    .single();
+    .select("admin_role,is_suspended")
+    .eq("id", user.id)
+    .maybeSingle();
 
-  const isAdmin = profile?.role === "admin" || profile?.admin_role !== null;
+  if (profileError || !profile || profile.is_suspended || !isAdminRole(profile.admin_role)) {
+    return isApi
+      ? NextResponse.json({ error: "Admin permission required" }, { status: 403 })
+      : NextResponse.redirect(new URL("/", request.url));
+  }
 
-  if (!isAdmin) {
-    // Not authorized - redirect based on route type
-    if (pathname.startsWith("/api/admin")) {
-      // API routes return 403
-      return NextResponse.json(
-        { error: "Forbidden: Admin access required" },
-        { status: 403 }
-      );
-    } else {
-      // Page routes redirect to home
-      return NextResponse.redirect(new URL("/", request.url));
-    }
+  const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (assuranceError || assurance.currentLevel !== "aal2") {
+    return isApi
+      ? NextResponse.json({ error: "Two-factor authentication required" }, { status: 403 })
+      : NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
   return response;
