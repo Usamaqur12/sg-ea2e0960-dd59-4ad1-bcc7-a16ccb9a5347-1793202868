@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle, Wand2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +79,7 @@ const demoProvider = {
 };
 
 export default function SportsProvidersPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [providers, setProviders] = useState<ProviderRecord[]>([]);
   const [loading, setLoading] = useState(true);

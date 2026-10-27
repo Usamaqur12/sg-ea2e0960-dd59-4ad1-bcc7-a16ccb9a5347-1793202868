@@ -18,7 +18,7 @@ interface MatchResult {
   away_score: number | null;
   status: string;
   start_time: string;
-  sport: { name: string; emoji: string };
+  sport: { name: string };
   league: { name: string };
 }
 
@@ -47,7 +47,7 @@ export default function Results() {
   const [selectedLeague, setSelectedLeague] = useState<string>("all");
   const [timePeriod, setTimePeriod] = useState<TimePeriod>("week");
   const [leaderboardMetric, setLeaderboardMetric] = useState<LeaderboardMetric>("profit");
-  const [sports, setSports] = useState<Array<{ name: string; emoji: string }>>([]);
+  const [sports, setSports] = useState<Array<{ name: string }>>([]);
   const [leagues, setLeagues] = useState<Array<{ name: string }>>([]);
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function Results() {
 
   async function loadSportsAndLeagues() {
     const [sportsResult, leaguesResult] = await Promise.all([
-      supabase.from("sports").select("name, emoji").order("name"),
+      supabase.from("sports").select("name").order("name"),
       supabase.from("leagues").select("name").order("name"),
     ]);
 
@@ -106,11 +106,9 @@ export default function Results() {
           id,
           home_team,
           away_team,
-          home_score,
-          away_score,
           status,
           start_time,
-          sport:sports(name, emoji),
+          sport:sports(name),
           league:leagues(name)
         `)
         .in("status", ["finished", "postponed", "cancelled"])
@@ -135,12 +133,15 @@ export default function Results() {
         if (leagueData) query = query.eq("league_id", leagueData.id);
       }
 
-      const { data } = await query;
+      const { data, error } = await query;
 
-      if (data) {
+      if (error) {
+        console.error("Failed to load results:", error);
+        setResults([]);
+      } else if (data) {
         setResults(data.map(r => ({
           ...r,
-          sport: r.sport || { name: "Unknown", emoji: "⚽" },
+          sport: r.sport || { name: "Unknown" },
           league: r.league || { name: "Unknown" },
         })));
       }
@@ -204,10 +205,10 @@ export default function Results() {
       const userIds = Array.from(userStats.keys());
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, username, display_name")
-        .in("user_id", userIds);
+        .select("id, username, display_name")
+        .in("id", userIds);
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p.username || p.display_name || "Anonymous"]) || []);
+      const profileMap = new Map(profiles?.map(p => [p.id, p.username || p.display_name || "Anonymous"]) || []);
 
       // Build leaderboard entries
       const entries: LeaderboardEntry[] = Array.from(userStats.entries()).map(([userId, stats]) => ({
@@ -293,7 +294,7 @@ export default function Results() {
                     <SelectItem value="all">All Sports</SelectItem>
                     {sports.map(sport => (
                       <SelectItem key={sport.name} value={sport.name}>
-                        {sport.emoji} {sport.name}
+                        {sport.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -331,7 +332,6 @@ export default function Results() {
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">{result.sport.emoji}</span>
                           <Badge variant="outline" className="text-xs">
                             {result.league.name}
                           </Badge>
