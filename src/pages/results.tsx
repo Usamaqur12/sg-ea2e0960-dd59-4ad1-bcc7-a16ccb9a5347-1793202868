@@ -106,6 +106,8 @@ export default function Results() {
           id,
           home_team,
           away_team,
+          home_score,
+          away_score,
           status,
           start_time,
           sport:sports(name),
@@ -205,10 +207,10 @@ export default function Results() {
       const userIds = Array.from(userStats.keys());
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, username, display_name")
-        .in("id", userIds);
+        .select("user_id, username")
+        .in("user_id", userIds);
 
-      const profileMap = new Map(profiles?.map(p => [p.id, p.username || p.display_name || "Anonymous"]) || []);
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.username || "Anonymous"]) || []);
 
       // Build leaderboard entries
       const entries: LeaderboardEntry[] = Array.from(userStats.entries()).map(([userId, stats]) => ({
