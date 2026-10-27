@@ -26,6 +26,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const [userRole, setUserRole] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [adminRole, setAdminRole] = useState<string>("admin");
 
   useEffect(() => {
     async function checkAuth() {
