@@ -50,6 +50,7 @@ const AREA_ROLES: Record<AdminArea, AdminRole[]> = {
   announcements: ["support"],
   brokers: ["finance"],
   casino: [],
+  sports_management: ["sports_trader"],
 };
 
 export function isAdminRole(role: string | null | undefined): role is AdminRole {
@@ -67,7 +68,7 @@ export function canAccessAdminArea(
 
 export function hasAdminAccess(role: AdminRole | string, area: AdminArea): boolean {
   if (role === "super_admin" || role === "admin") return true;
-  return AREA_ROLES[area].includes(role);
+  return AREA_ROLES[area].includes(role as AdminRole);
 }
 
 // Alias for backwards compatibility
