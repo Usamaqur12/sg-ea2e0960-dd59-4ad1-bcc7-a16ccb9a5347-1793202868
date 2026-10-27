@@ -63,3 +63,23 @@ export function canAccessAdminArea(
   if (role === "super_admin" || role === "admin") return true;
   return AREA_ROLES[area].includes(role);
 }
+
+export async function requireAdmin(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  requiredRole?: AdminRole
+): Promise<boolean> {
+  // Check admin status (2FA requirement removed)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin, admin_role, is_suspended")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.is_admin || profile.is_suspended) {
+    res.status(403).json({ 
+      error: "Admin access denied"
+    });
+    return false;
+  }
+}

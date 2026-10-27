@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PUBLISHED WEBSITE KE LIYE ADMIN SETUP SQL
+-- PUBLISHED WEBSITE KE LIYE ADMIN SETUP SQL (2FA REQUIREMENT REMOVED)
 -- ==============================================================================
 -- 
 -- YEH SCRIPT PUBLISHED WEBSITE (https://sg-83bb9141-db4e-49e7-bc62-8148f2d8.vercel.app)
@@ -13,9 +13,10 @@
 -- 2. Left sidebar mein "SQL Editor" par click karein
 -- 3. "New Query" button dabayein
 -- 4. Is poori script ko copy karke SQL editor mein paste karein
--- 5. Neeche apna email address replace karein (line 32 aur 59)
+-- 5. Neeche apna email address replace karein (line 31)
 -- 6. "Run" button dabayein
 --
+-- NOTE: 2FA requirement ab website se remove kar di gayi hai
 -- ==============================================================================
 
 DO $primebet_published_admin$
@@ -27,7 +28,7 @@ DECLARE
 BEGIN
   -- Check: Email placeholder replace kiya gaya hai?
   IF v_email LIKE 'your_email%' THEN
-    RAISE EXCEPTION 'Pehle apna email address script mein update karein (line 32)';
+    RAISE EXCEPTION 'Pehle apna email address script mein update karein (line 31)';
   END IF;
 
   -- Step 1: Check karo ke Supabase Auth mein user hai ya nahi
@@ -49,7 +50,7 @@ BEGIN
     VALUES (v_user_id, v_email, 0);
   END IF;
 
-  -- Step 3: Admin role aur permissions set karein
+  -- Step 3: Admin role set karein (2FA requirement removed)
   UPDATE public.profiles
   SET 
     is_admin = TRUE,
@@ -59,12 +60,9 @@ BEGIN
   WHERE id = v_user_id;
 
   RAISE NOTICE '✅ Admin role successfully set for %', v_email;
-  RAISE NOTICE '⚠️  IMPORTANT: Authenticator 2FA setup zaroori hai!';
+  RAISE NOTICE '✅ 2FA requirement removed - seedha admin portal access kar sakte hain';
   RAISE NOTICE '   1. Published site par login karein';
-  RAISE NOTICE '   2. Account Settings → Security tab par jayein';
-  RAISE NOTICE '   3. Two-factor authentication enable karein';
-  RAISE NOTICE '   4. Authenticator app se setup complete karein';
-  RAISE NOTICE '   5. Phir admin portal access kar sakte hain';
+  RAISE NOTICE '   2. /admin URL par jayein';
 END
 $primebet_published_admin$;
 
@@ -74,7 +72,6 @@ SELECT
   email,
   is_admin,
   admin_role,
-  two_factor_enabled,
   is_suspended,
   created_at
 FROM public.profiles
@@ -86,6 +83,5 @@ WHERE lower(email) = lower('johnnyldaniels506@gmail.com');
 -- - One row showing your account with:
 --   * is_admin = true
 --   * admin_role = 'super_admin'
---   * two_factor_enabled = false (abhi)
 --   * is_suspended = false
 -- ==============================================================================

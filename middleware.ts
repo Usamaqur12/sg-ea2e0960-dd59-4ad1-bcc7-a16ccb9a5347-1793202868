@@ -41,23 +41,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("admin_role,is_suspended")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Admin route protection
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    // Check admin role (2FA check removed per user request)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_admin, admin_role, is_suspended")
+      .eq("id", user.id)
+      .maybeSingle();
 
-  if (profileError || !profile || profile.is_suspended || !isAdminRole(profile.admin_role)) {
-    return isApi
-      ? NextResponse.json({ error: "Admin permission required" }, { status: 403 })
-      : NextResponse.redirect(new URL("/", request.url));
-  }
+    const isValidAdmin = profile?.is_admin === true && 
+                        profile?.is_suspended !== true;
 
-  const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (assuranceError || assurance.currentLevel !== "aal2") {
-    return isApi
-      ? NextResponse.json({ error: "Two-factor authentication required" }, { status: 403 })
-      : NextResponse.redirect(new URL("/admin/login", request.url));
+    if (!isValidAdmin) {
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("error", "admin_access_denied");
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   return response;

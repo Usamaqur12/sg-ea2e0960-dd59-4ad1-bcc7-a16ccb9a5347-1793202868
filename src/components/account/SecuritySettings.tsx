@@ -143,8 +143,8 @@ export function SecuritySettings() {
         </Alert>
       )}
 
-      {/* Two-Factor Authentication Section */}
-      <div className="space-y-4">
+      {/* Two-Factor Authentication Section - HIDDEN per user request */}
+      <div className="space-y-4 hidden">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
