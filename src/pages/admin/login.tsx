@@ -15,9 +15,6 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
-  const [mfaChallengeId, setMfaChallengeId] = useState<string | null>(null);
-  const [mfaCode, setMfaCode] = useState("");
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -96,40 +93,13 @@ export default function AdminLogin() {
         return;
       }
 
-      const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (assurance.error) {
-        setError(assurance.error.message);
-        setLoading(false);
-        return;
-      }
-      if (assurance.data.nextLevel !== "aal2") {
-        setError("Authenticator-app 2FA is required. Open Account Settings, select Security, and set up an authenticator before returning here.");
-        setLoading(false);
-        return;
-      }
-      if (assurance.data.currentLevel !== "aal2") {
-        const factors = await supabase.auth.mfa.listFactors();
-        const factor = factors.data?.totp.find((item) => item.status === "verified");
-        if (!factor) throw new Error("No verified authenticator factor is available");
-        const challenge = await supabase.auth.mfa.challenge({ factorId: factor.id });
-        if (challenge.error) throw challenge.error;
-        setMfaFactorId(factor.id); setMfaChallengeId(challenge.data.id); setLoading(false); return;
-      }
+      // 2FA requirement removed - redirect directly to admin portal
       await router.push("/admin");
     } catch (err) {
       console.error("Login error:", err);
       setError("An unexpected error occurred");
       setLoading(false);
     }
-  }
-
-  async function handleMfa(e: React.FormEvent) {
-    e.preventDefault(); setError("");
-    if (!mfaFactorId || !mfaChallengeId || mfaCode.length !== 6) return;
-    setLoading(true);
-    const result = await supabase.auth.mfa.verify({ factorId: mfaFactorId, challengeId: mfaChallengeId, code: mfaCode });
-    if (result.error) setError(result.error.message); else await router.push("/admin");
-    setLoading(false);
   }
 
   return (
@@ -147,7 +117,7 @@ export default function AdminLogin() {
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={mfaFactorId ? handleMfa : handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div className="p-3 rounded bg-danger/10 border border-danger/30 flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-danger flex-shrink-0 mt-0.5" />
@@ -155,7 +125,6 @@ export default function AdminLogin() {
               </div>
             )}
 
-            {mfaFactorId ? <div className="space-y-2"><Label htmlFor="mfa-code" className="flex items-center gap-2"><Shield className="h-4 w-4" />Authenticator code</Label><Input id="mfa-code" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, ""))} placeholder="123456" autoFocus /></div> : <>
             <div className="space-y-2">
               <Label htmlFor="email" className="flex items-center gap-2">
                 <Mail className="h-4 w-4" />
@@ -189,23 +158,19 @@ export default function AdminLogin() {
                 className="h-11"
               />
             </div>
-            </>}
 
             <Button
               type="submit"
               disabled={loading}
               className="w-full h-11 bg-primary hover:bg-primary/90 font-bold"
             >
-              {loading ? "Authenticating..." : mfaFactorId ? "Verify and continue" : "Access Admin Portal"}
+              {loading ? "Authenticating..." : "Access Admin Portal"}
             </Button>
 
             <div className="pt-4 border-t border-border text-center">
               <p className="text-xs text-muted-foreground">
                 This is a secure area. Unauthorized access is prohibited.
               </p>
-              <Link href="/account/settings" className="mt-2 inline-block text-xs text-primary underline">
-                Set up 2FA in Account Settings → Security
-              </Link>
             </div>
           </form>
         </CardContent>
