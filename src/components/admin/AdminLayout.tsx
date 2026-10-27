@@ -28,66 +28,38 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    checkAdminAccess();
-  }, []);
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          router.push("/admin/login");
+          return;
+        }
 
-  async function checkAdminAccess() {
-    try {
-      // Check if user is authenticated
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("is_admin, admin_role, is_suspended")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (!profile?.is_admin || profile.is_suspended) {
+          toast({ title: "Access denied", description: "Admin privileges required", variant: "destructive" });
+          router.push("/admin/login");
+          return;
+        }
+
+        // 2FA requirement removed per user request
+        setAdminRole(profile.admin_role || "admin");
+        setLoading(false);
+      } catch (error) {
+        console.error("Auth check failed:", error);
         router.push("/admin/login");
-        return;
       }
-
-      // Check if user has admin role and is not suspended
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("admin_role, full_name, is_suspended, suspension_reason")
-        .eq("id", user.id)
-        .single();
-
-      if (error || !profile) {
-        await supabase.auth.signOut();
-        router.push("/admin/login");
-        return;
-      }
-
-      // Block suspended users
-      if (profile.is_suspended) {
-        await supabase.auth.signOut();
-        toast({
-          title: "Account Suspended",
-          description: profile.suspension_reason || "Your account has been suspended. Please contact support.",
-          variant: "destructive",
-        });
-        router.push("/admin/login");
-        return;
-      }
-
-      // Verify admin role
-      if (!isAdminRole(profile.admin_role)) {
-        await supabase.auth.signOut();
-        router.push("/");
-        return;
-      }
-
-      const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (assurance.error || assurance.data.currentLevel !== "aal2") {
-        toast({ title: "Two-factor verification required", description: "Verify your authenticator code to access the admin portal.", variant: "destructive" });
-        router.push("/admin/login");
-        return;
-      }
-
-      setUser(user);
-      setUserRole(profile.admin_role);
-      setLoading(false);
-    } catch (error) {
-      console.error("Admin access check error:", error);
-      router.push("/admin/login");
     }
-  }
+
+    checkAuth();
+  }, [router]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
