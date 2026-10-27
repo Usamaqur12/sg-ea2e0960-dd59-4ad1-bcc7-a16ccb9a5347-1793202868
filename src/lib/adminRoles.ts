@@ -44,12 +44,12 @@ const AREA_ROLES: Record<AdminArea, AdminRole[]> = {
   support: ["support"],
   risk: ["risk_manager"],
   reports: ["finance"],
-  audit: [],
-  monitoring: [],
+  audit: ["risk_manager"],
+  monitoring: ["risk_manager"],
   trading: ["sports_trader"],
   announcements: ["support"],
   brokers: ["finance"],
-  casino: [],
+  casino: ["finance"],
   sports_management: ["sports_trader"],
 };
 

@@ -3,11 +3,12 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { hasAdminAccess } from "@/lib/adminRoles";
 import { 
   LayoutDashboard, Users, Receipt, CreditCard, Gift, 
   MessageSquare, AlertTriangle, BarChart3, Shield,
   FileText, TrendingUp, Megaphone, Building2, Gamepad2,
-  Settings, LogOut, Bitcoin, LineChart
+  Settings, LogOut, Bitcoin, LineChart, Activity, Trophy, Coins, Bell, Dices, CheckCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -64,28 +65,45 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const navigation = [
-    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    { name: "Users", href: "/admin/users", icon: Users },
-    { name: "KYC", href: "/admin/kyc", icon: Shield },
-    { name: "Bets", href: "/admin/bets", icon: Receipt },
-    { name: "Sports", href: "/admin/sports", icon: LineChart },
-    { name: "Transactions", href: "/admin/transactions", icon: CreditCard },
-    { name: "Payments", href: "/admin/payments", icon: CreditCard },
-    { name: "Crypto", href: "/admin/crypto", icon: Bitcoin },
-    { name: "Promotions", href: "/admin/promotions", icon: Gift },
-    { name: "Support", href: "/admin/support", icon: MessageSquare },
-    { name: "Risk", href: "/admin/risk", icon: AlertTriangle },
-    { name: "Reports", href: "/admin/reports", icon: BarChart3 },
-    { name: "Audit", href: "/admin/audit", icon: FileText },
-    { name: "Monitoring", href: "/admin/monitoring", icon: TrendingUp },
-    { name: "Trading", href: "/admin/trading", icon: TrendingUp },
-    { name: "Announcements", href: "/admin/announcements", icon: Megaphone },
-    { name: "Brokers", href: "/admin/brokers", icon: Building2 },
-    { name: "Casino", href: "/admin/casino", icon: Gamepad2 },
-    { name: "Providers", href: "/admin/providers", icon: Settings },
-    { name: "Readiness", href: "/admin/readiness", icon: Shield },
+  // Role-based navigation - only show allowed sections
+  const allNavItems = [
+    { href: "/admin", label: "Dashboard", icon: LayoutDashboard, areas: ["dashboard"] },
+    { href: "/admin/admin-users", label: "Admin Users", icon: Shield, areas: [], superAdminOnly: true },
+    { href: "/admin/users", label: "Users", icon: Users, areas: ["users"] },
+    { href: "/admin/kyc", label: "KYC", icon: Shield, areas: ["kyc"] },
+    { href: "/admin/bets", label: "Bets", icon: Activity, areas: ["bets"] },
+    { href: "/admin/sports", label: "Sports", icon: Trophy, areas: ["sports"] },
+    { href: "/admin/transactions", label: "Transactions", icon: Receipt, areas: ["transactions"] },
+    { href: "/admin/payments", label: "Payments", icon: CreditCard, areas: ["payments"] },
+    { href: "/admin/crypto", label: "Crypto", icon: Coins, areas: ["crypto"] },
+    { href: "/admin/promotions", label: "Promotions", icon: Gift, areas: ["promotions"] },
+    { href: "/admin/support", label: "Support", icon: MessageSquare, areas: ["support"] },
+    { href: "/admin/risk", label: "Risk", icon: AlertTriangle, areas: ["risk"] },
+    { href: "/admin/reports", label: "Reports", icon: FileText, areas: ["reports"] },
+    { href: "/admin/audit", label: "Audit", icon: FileText, areas: ["audit"] },
+    { href: "/admin/monitoring", label: "Monitoring", icon: Activity, areas: ["monitoring"] },
+    { href: "/admin/trading", label: "Trading", icon: TrendingUp, areas: ["trading"] },
+    { href: "/admin/announcements", label: "Announcements", icon: Bell, areas: ["announcements"] },
+    { href: "/admin/brokers", label: "Brokers", icon: Users, areas: ["brokers"] },
+    { href: "/admin/casino", label: "Casino", icon: Dices, areas: ["casino"] },
+    { href: "/admin/providers", label: "Providers", icon: Settings, areas: ["sports_management"] },
+    { href: "/admin/readiness", label: "Readiness", icon: CheckCircle, areas: [] },
   ];
+
+  // Filter navigation based on role
+  const navItems = allNavItems.filter(item => {
+    // Super admin and admin see everything
+    if (adminRole === "super_admin" || adminRole === "admin") return true;
+    
+    // Super admin only items
+    if (item.superAdminOnly) return false;
+    
+    // Dashboard and readiness are visible to all admins
+    if (item.areas.length === 0) return true;
+    
+    // Check if user has access to any of the item's areas
+    return item.areas.some(area => hasAdminAccess(adminRole, area as any));
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,7 +119,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-            {navigation.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = router.pathname === item.href;
               
@@ -116,7 +134,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   <Icon className="h-5 w-5" />
-                  <span className="font-medium">{item.name}</span>
+                  <span className="font-medium">{item.label}</span>
                 </Link>
               );
             })}
