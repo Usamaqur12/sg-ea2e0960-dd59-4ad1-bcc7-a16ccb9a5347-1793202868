@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { verifyBearerSecret } from "@/lib/server/verifyBearerSecret";
 import { protectApi } from "@/lib/server/apiProtection";
 
@@ -76,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   };
 
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const { data, error } = await admin.rpc("ingest_sports_feed_event", { p_update_id: value.updateId, p_payload: payload });
     if (error) throw error;
     return res.status(202).json({ accepted: true, result: data });

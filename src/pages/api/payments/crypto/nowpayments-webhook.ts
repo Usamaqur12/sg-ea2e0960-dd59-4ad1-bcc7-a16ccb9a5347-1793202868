@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { paymentPayloadHash, verifyNowPaymentsSignature } from "@/lib/server/cryptoPayments";
 
 const webhookSchema = z.object({
@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const payloadHash = paymentPayloadHash(req.body);
   const eventKey = `${value.payment_id}:${value.payment_status}:${value.updated_at || payloadHash}`;
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const { data, error } = await (admin as any).rpc("apply_crypto_deposit_update", {
       p_provider: "nowpayments", p_event_key: eventKey, p_provider_payment_id: String(value.payment_id),
       p_invoice_id: value.order_id, p_payment_status: value.payment_status, p_price_amount: value.price_amount,

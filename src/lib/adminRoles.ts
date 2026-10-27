@@ -28,7 +28,8 @@ export type AdminArea =
   | "trading"
   | "announcements"
   | "brokers"
-  | "casino";
+  | "casino"
+  | "sports_management";
 
 const AREA_ROLES: Record<AdminArea, AdminRole[]> = {
   dashboard: ["finance", "kyc", "support", "risk_manager", "sports_trader"],
@@ -64,7 +65,7 @@ export function canAccessAdminArea(
   return AREA_ROLES[area].includes(role);
 }
 
-export function hasAdminAccess(role: string, area: keyof typeof AREA_ROLES): boolean {
+export function hasAdminAccess(role: AdminRole | string, area: AdminArea): boolean {
   if (role === "super_admin" || role === "admin") return true;
   return AREA_ROLES[area].includes(role);
 }

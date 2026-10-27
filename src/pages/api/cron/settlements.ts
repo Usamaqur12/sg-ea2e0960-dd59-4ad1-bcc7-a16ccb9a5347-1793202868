@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { verifyBearerSecret } from "@/lib/server/verifyBearerSecret";
 
 const MAX_JOBS_PER_RUN = 25;
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const results = [];
 
     for (let index = 0; index < MAX_JOBS_PER_RUN; index += 1) {

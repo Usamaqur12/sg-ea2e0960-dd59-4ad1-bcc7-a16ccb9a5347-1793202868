@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { casinoPayloadHash, verifyCasinoSignature } from "@/lib/server/casinoProvider";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { protectApi } from "@/lib/server/apiProtection";
 
 const schema = z.object({
@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid callback payload" });
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const value = parsed.data;
     const { data, error } = await (admin as any).rpc("apply_casino_transaction", {
       p_provider_code: value.providerCode, p_session_id: value.sessionId, p_provider_event_id: value.eventId,

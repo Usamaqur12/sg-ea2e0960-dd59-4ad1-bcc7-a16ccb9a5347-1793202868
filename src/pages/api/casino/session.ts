@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { protectApi } from "@/lib/server/apiProtection";
 import { createCasinoLaunch } from "@/lib/server/casinoProvider";
 
@@ -19,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
   if (!siteUrl || !process.env.CASINO_CALLBACK_SECRET) return res.status(503).json({ error: "Casino callbacks are not configured" });
 
-  const admin = createSupabaseAdmin();
+  const admin = supabaseAdmin;
   const { data: auth } = await admin.auth.getUser(token);
   if (!auth.user) return res.status(401).json({ error: "Invalid session" });
   const [{ data: profile }, { data: game }] = await Promise.all([

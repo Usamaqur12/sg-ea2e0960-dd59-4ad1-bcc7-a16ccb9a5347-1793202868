@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { verifyBearerSecret } from "@/lib/server/verifyBearerSecret";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -12,7 +12,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const { data, error } = await admin.rpc("expire_user_bonuses", { p_batch_size: 500 });
     if (error) throw error;
     return res.status(200).json({ ok: true, result: data });

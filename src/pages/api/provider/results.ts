@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { verifyBearerSecret } from "@/lib/server/verifyBearerSecret";
 import { protectApi } from "@/lib/server/apiProtection";
 
@@ -51,7 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const { data, error } = await admin.rpc("record_event_result_and_queue", {
       p_event_id: parsed.data.eventId,
       p_status: parsed.data.status,

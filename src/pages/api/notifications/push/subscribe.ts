@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { protectApi } from "@/lib/server/apiProtection";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url().max(2000),
@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!token) return res.status(401).json({ error: "Authentication required" });
   const parsed = (req.method === "POST" ? subscribeSchema : unsubscribeSchema).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid push subscription" });
-  const admin = createSupabaseAdmin();
+  const admin = supabaseAdmin;
   const { data: authData, error: authError } = await admin.auth.getUser(token);
   if (authError || !authData.user) return res.status(401).json({ error: "Invalid session" });
   const operation = req.method === "POST"

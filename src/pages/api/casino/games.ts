@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { protectApi } from "@/lib/server/apiProtection";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -7,7 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "GET") { res.setHeader("Allow", "GET"); return res.status(405).json({ error: "Method not allowed" }); }
   if (process.env.CASINO_ENABLED !== "true") return res.status(200).json({ enabled: false, games: [] });
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const { data, error } = await (admin as any).from("casino_games")
       .select("id,external_game_id,name,category,thumbnail_url,is_popular,is_new,metadata,casino_providers!inner(code,name,is_enabled)")
       .eq("is_active", true).eq("casino_providers.is_enabled", true).order("is_popular", { ascending: false }).order("name");

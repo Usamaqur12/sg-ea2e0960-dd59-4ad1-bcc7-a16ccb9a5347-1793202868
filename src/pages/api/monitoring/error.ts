@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
 import { protectApi } from "@/lib/server/apiProtection";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 
 const schema = z.object({
   message: z.string().trim().min(1).max(1_000), stack: z.string().max(12_000).optional().nullable(),
@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid error report" });
   try {
-    const admin = createSupabaseAdmin();
+    const admin = supabaseAdmin;
     const message = redact(parsed.data.message);
     const route = parsed.data.route ? redact(parsed.data.route) : null;
     const stack = parsed.data.stack ? redact(parsed.data.stack) : null;

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { z } from "zod";
-import { createSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { protectApi } from "@/lib/server/apiProtection";
 
 const requestSchema = z.object({
@@ -47,7 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(503).json({ error: "Crypto payment provider is not configured" });
   }
 
-  const admin = createSupabaseAdmin();
+  const admin = supabaseAdmin;
   const { data: configuredMethod, error: methodError } = await (admin as any)
     .from("payment_methods")
     .select("id")
