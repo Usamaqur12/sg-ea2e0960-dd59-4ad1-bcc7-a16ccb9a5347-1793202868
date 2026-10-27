@@ -46,7 +46,8 @@ export default function AdminUsersPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminRole, setNewAdminRole] = useState<string>("admin");
-  const [currentUserRole, setCurrentUserRole] = useState<string>("");
+  const [processing, setProcessing] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string>("admin");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -69,6 +70,20 @@ export default function AdminUsersPage() {
 
   async function loadAdmins() {
     try {
+      // Get current user's role first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("admin_role")
+          .eq("id", user.id)
+          .single();
+        
+        if (profile?.admin_role) {
+          setCurrentUserRole(profile.admin_role);
+        }
+      }
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, email, admin_role, is_suspended, created_at")
@@ -271,8 +286,26 @@ export default function AdminUsersPage() {
                   <TableRow key={admin.id}>
                     <TableCell className="font-medium">{admin.email}</TableCell>
                     <TableCell>
-                      <Badge variant={admin.admin_role === "super_admin" ? "default" : "secondary"}>
-                        {admin.admin_role}
+                      <Badge 
+                        variant={
+                          admin.admin_role === "super_admin" 
+                            ? "default"
+                            : admin.admin_role === "admin"
+                            ? "secondary"
+                            : "outline"
+                        }
+                        className={
+                          admin.admin_role === "super_admin"
+                            ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold"
+                            : ""
+                        }
+                      >
+                        {/* Only show super_admin role to super admins */}
+                        {admin.admin_role === "super_admin" && currentUserRole === "super_admin" && "👑 "}
+                        {admin.admin_role === "super_admin" && currentUserRole !== "super_admin" 
+                          ? "ADMIN" 
+                          : (admin.admin_role?.replace("_", " ").toUpperCase() || "ADMIN")
+                        }
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -339,16 +372,21 @@ export default function AdminUsersPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Admin Role</Label>
-              <Select value={newAdminRole} onValueChange={setNewAdminRole}>
+              <Select value={newAdminRole} onValueChange={(value: any) => setNewAdminRole(value)}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ADMIN_ROLES.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="admin">Admin (Full Access)</SelectItem>
+                  {/* Super admin option only visible to super admins */}
+                  {currentUserRole === "super_admin" && (
+                    <SelectItem value="super_admin">Super Admin (Ultimate Access)</SelectItem>
+                  )}
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="kyc">KYC</SelectItem>
+                  <SelectItem value="support">Support</SelectItem>
+                  <SelectItem value="risk_manager">Risk Manager</SelectItem>
+                  <SelectItem value="sports_trader">Sports Trader</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
