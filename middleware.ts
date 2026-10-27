@@ -1,49 +1,47 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { isAdminRole } from "./src/lib/adminRoles";
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const isApi = pathname.startsWith("/api/admin/");
-
-  if (pathname === "/admin/login") {
-    return NextResponse.next();
-  }
-
-  let response = NextResponse.next({ request });
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    return isApi
-      ? NextResponse.json({ error: "Admin authentication unavailable" }, { status: 503 })
-      : NextResponse.redirect(new URL("/admin/login", request.url));
-  }
-
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-      },
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
     },
   });
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    if (isApi) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-    const loginUrl = new URL("/admin/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
 
-  // Admin route protection
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Admin route protection - 2FA requirement removed
   if (request.nextUrl.pathname.startsWith("/admin")) {
-    // Check admin role (2FA check removed per user request)
+    if (!user) {
+      const loginUrl = new URL("/admin/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Check admin role only (no 2FA check)
     const { data: profile } = await supabase
       .from("profiles")
       .select("is_admin, admin_role, is_suspended")
@@ -64,5 +62,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
