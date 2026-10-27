@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { z } from "zod";
 import { requireAdminApi } from "@/lib/server/requireAdminApi";
-import { generateMarketsForMatch } from "@/services/mockMarketsService";
+import { hasAccess } from "@/lib/adminRoles";
+import { generateMockMarkets } from "@/services/mockMarketsService";
 
 const bodySchema = z.object({
   eventId: z.string().uuid().optional(),

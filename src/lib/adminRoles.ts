@@ -63,3 +63,11 @@ export function canAccessAdminArea(
   if (role === "super_admin" || role === "admin") return true;
   return AREA_ROLES[area].includes(role);
 }
+
+export function hasAdminAccess(role: string, area: keyof typeof AREA_ROLES): boolean {
+  if (role === "super_admin" || role === "admin") return true;
+  return AREA_ROLES[area].includes(role);
+}
+
+// Alias for backwards compatibility
+export const hasAccess = hasAdminAccess;
