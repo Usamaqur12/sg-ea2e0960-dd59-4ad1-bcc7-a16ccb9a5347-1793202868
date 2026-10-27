@@ -23,7 +23,7 @@ import type { SportsbookEvent, SportsbookOutcome } from "@/types/sportsbook";
 import Link from "next/link";
 import { getUserFavoriteEventIds, toggleFavorite as persistFavorite } from "@/services/favoritesService";
 import { LiveOddsFeed } from "@/components/sportsbook/LiveOddsFeed";
-import { SEO } from "@/components/ui/seo";
+import { SEO } from "@/components/SEO";
 
 type ProfileSummary = {
   balance: number;
