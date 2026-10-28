@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://build-test.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_build_test
+      SUPABASE_SECRET_KEY: sb_secret_build_test
+      NEXT_PUBLIC_DEMO_MODE: "false"
+      NEXT_PUBLIC_ENABLE_DEMO_BACKEND: "false"
+      PRODUCTION_MODE: "false"
+      ENFORCE_PRODUCTION_READINESS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test:ui-actions

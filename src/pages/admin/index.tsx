@@ -8,8 +8,28 @@ import { Button } from "@/components/ui/button";
 import { 
   Users, TrendingUp, Wallet, FileCheck, 
   ArrowUpRight, ArrowDownRight, DollarSign,
-  AlertTriangle, TrendingDown, Activity
+  AlertTriangle, TrendingDown, Activity, Landmark, ShieldAlert,
+  Headphones, Radio, ServerCog, CheckSquare
 } from "lucide-react";
+
+interface OperationsSummary {
+  queues: {
+    pendingDeposits: number;
+    pendingWithdrawals: number;
+    pendingApprovals: number;
+    openSupportTickets: number;
+    pendingKyc: number;
+    unreviewedRiskFlags: number;
+  };
+  system: {
+    pendingJobs: number;
+    failedJobs: number;
+    liveEvents: number;
+    upcomingEvents: number;
+    enabledProviders: number;
+    unhealthyProviders: number;
+  };
+}
 
 interface RiskAlert {
   userId: string;
@@ -33,11 +53,26 @@ export default function AdminDashboard() {
     activeBets: 0,
   });
   const [riskAlerts, setRiskAlerts] = useState<RiskAlert[]>([]);
+  const [operations, setOperations] = useState<OperationsSummary | null>(null);
 
   useEffect(() => {
     loadDashboardStats();
     loadRiskAlerts();
+    loadOperations();
   }, []);
+
+  async function loadOperations() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const response = await fetch("/api/admin/dashboard", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      if (response.ok) setOperations(await response.json());
+    } catch (error) {
+      console.error("Error loading operations dashboard:", error);
+    }
+  }
 
   async function loadDashboardStats() {
     setLoading(true);
@@ -308,6 +343,45 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {operations && (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold">Operations queues</h2>
+                    <p className="text-xs text-muted-foreground">Items requiring staff attention</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => void loadOperations()}>
+                    <Activity className="mr-2 h-4 w-4" />Refresh
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-6 md:grid-cols-3 xl:grid-cols-6">
+                  {[
+                    { label: "Deposits", value: operations.queues.pendingDeposits, icon: Landmark, href: "/admin/payments" },
+                    { label: "Withdrawals", value: operations.queues.pendingWithdrawals, icon: Wallet, href: "/admin/payments" },
+                    { label: "Approvals", value: operations.queues.pendingApprovals, icon: CheckSquare, href: "/admin/payments" },
+                    { label: "KYC review", value: operations.queues.pendingKyc, icon: FileCheck, href: "/admin/kyc" },
+                    { label: "Support", value: operations.queues.openSupportTickets, icon: Headphones, href: "/admin/support" },
+                    { label: "Risk flags", value: operations.queues.unreviewedRiskFlags, icon: ShieldAlert, href: "/admin/risk" },
+                  ].map((item) => (
+                    <button key={item.label} onClick={() => router.push(item.href)} className="rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/50">
+                      <div className="flex items-center justify-between"><item.icon className="h-4 w-4 text-muted-foreground" /><span className={item.value > 0 ? "text-warning" : "text-success"}>{item.value}</span></div>
+                      <p className="mt-2 text-xs font-medium">{item.label}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <Card className="surface mb-6">
+                  <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ServerCog className="h-5 w-5" />Live platform status</CardTitle></CardHeader>
+                  <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <button onClick={() => router.push("/admin/sports")} className="rounded-lg border p-3 text-left"><Radio className="mb-2 h-4 w-4 text-primary" /><div className="text-2xl font-bold">{operations.system.liveEvents}</div><div className="text-xs text-muted-foreground">Live events · {operations.system.upcomingEvents} upcoming</div></button>
+                    <button onClick={() => router.push("/admin/providers")} className="rounded-lg border p-3 text-left"><Activity className="mb-2 h-4 w-4 text-primary" /><div className="text-2xl font-bold">{operations.system.enabledProviders}</div><div className="text-xs text-muted-foreground">Enabled providers · {operations.system.unhealthyProviders} unhealthy</div></button>
+                    <button onClick={() => router.push("/admin/monitoring")} className="rounded-lg border p-3 text-left"><ServerCog className="mb-2 h-4 w-4 text-primary" /><div className="text-2xl font-bold">{operations.system.pendingJobs}</div><div className="text-xs text-muted-foreground">Pending jobs · {operations.system.failedJobs} failed</div></button>
+                    <button onClick={() => router.push("/admin/readiness")} className="rounded-lg border p-3 text-left"><CheckSquare className="mb-2 h-4 w-4 text-primary" /><div className="text-sm font-bold">Launch readiness</div><div className="mt-2 text-xs text-muted-foreground">Check secrets, database and external services</div></button>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
             {/* High-Risk Betting Patterns Widget */}
             <Card className="surface mb-6">

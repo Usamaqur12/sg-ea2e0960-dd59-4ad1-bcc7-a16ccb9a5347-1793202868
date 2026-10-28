@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { verifyBearerSecret } from "@/lib/server/verifyBearerSecret";
 import { supabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { syncSportsProvider, type ManagedSportsProvider } from "@/lib/server/syncSportsProvider";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
+  if (!["GET", "POST"].includes(req.method || "")) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
@@ -13,9 +14,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { data: providers, error } = await supabaseAdmin
-      .from("sports_providers")
+      .from("sports_feed_providers")
       .select("*")
-      .eq("enabled", true);
+      .eq("is_enabled", true)
+      .order("priority", { ascending: true })
+      .limit(20);
 
     if (error) throw error;
 
@@ -26,22 +29,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Here you would implement the actual sync logic
-    // For now, just update the last_sync_at timestamp
-    const syncResults = await Promise.all(
-      providers.map(async (provider) => {
-        const { error: updateError } = await supabaseAdmin
-          .from("sports_providers")
-          .update({ last_sync_at: new Date().toISOString() })
-          .eq("id", provider.id);
-
-        return { id: provider.id, success: !updateError };
-      })
-    );
+    const now = Date.now();
+    const dueProviders = providers.filter((provider) => !provider.last_sync_at ||
+      now - new Date(provider.last_sync_at).getTime() >= provider.sync_interval_seconds * 1000);
+    const syncResults = await Promise.all(dueProviders.map(async (provider) => {
+      try {
+        return await syncSportsProvider(provider as ManagedSportsProvider, "sync");
+      } catch (syncError) {
+        return { ok: false, providerId: provider.id, error: syncError instanceof Error ? syncError.message : "Sync failed" };
+      }
+    }));
 
     return res.status(200).json({
       message: "Sports feed sync completed",
-      synced: syncResults.filter((r) => r.success).length,
+      due: dueProviders.length,
+      synced: syncResults.filter((result) => result.ok).length,
       results: syncResults,
     });
   } catch (error: any) {

@@ -9,28 +9,21 @@ import { supabase } from "@/integrations/supabase/client";
 type Item = { id: string; label: string; ready: boolean; detail: string; owner: "development" | "external" };
 type Report = { generatedAt: string; score: number; ready: number; total: number; items: Item[] };
 
-const demoItems: Item[] = [
-  { id: "database", label: "Database migrations", ready: true, detail: "44 ordered migrations packaged", owner: "development" },
-  { id: "betting", label: "Betting and settlement core", ready: true, detail: "Atomic betting, cash-out, system bets and settlement available", owner: "development" },
-  { id: "security", label: "Application security foundation", ready: true, detail: "AAL2 admin, RLS, API validation and rate limits", owner: "development" },
-  { id: "startup-lock", label: "Fail-closed production startup", ready: true, detail: "Enable ENFORCE_PRODUCTION_READINESS after production secrets are configured", owner: "development" },
-  { id: "health", label: "Health and readiness probes", ready: true, detail: "/api/health and /api/ready are available for hosting checks", owner: "development" },
-  { id: "sports", label: "Paid sports provider", ready: false, detail: "Provider contract and production API key required", owner: "external" },
-  { id: "casino", label: "Licensed casino aggregator", ready: false, detail: "Aggregator contract and callback credentials required", owner: "external" },
-  { id: "payments", label: "Approved payment merchant", ready: false, detail: "Merchant approval and production webhook keys required", owner: "external" },
-  { id: "kyc", label: "KYC and AML provider", ready: false, detail: "Identity, age, sanctions and AML provider credentials required", owner: "external" },
-  { id: "communication", label: "Email and SMS delivery", ready: false, detail: "Transactional email and SMS provider credentials required", owner: "external" },
-  { id: "licence", label: "Operating licence", ready: false, detail: "Licence number and jurisdiction must be supplied by the operator", owner: "external" },
-  { id: "monitoring", label: "Cloud monitoring and alerts", ready: false, detail: "Production hosting and monitoring account required", owner: "external" },
-];
-
 export default function ReadinessPage() {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    const result = await fetch("/api/admin/readiness");
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      setError("Admin session expired. Sign in again.");
+      setLoading(false);
+      return;
+    }
+    const result = await fetch("/api/admin/readiness", {
+      headers: { authorization: `Bearer ${session.access_token}` },
+    });
     const body = await result.json();
     if (!result.ok) setError(body.error || "Readiness report could not load"); else setReport(body as Report);
     setLoading(false);

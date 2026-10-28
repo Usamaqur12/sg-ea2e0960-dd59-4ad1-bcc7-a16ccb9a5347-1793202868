@@ -1,13 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const supabasePublicKey = (
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+)?.trim();
 
 export async function requireAdminApi(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<{ userId: string; adminRole: string } | null> {
+  if (!supabaseUrl || !supabasePublicKey) {
+    res.status(503).json({ error: "Supabase authentication is not configured" });
+    return null;
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Missing or invalid authorization header" });
@@ -15,7 +23,7 @@ export async function requireAdminApi(
   }
 
   const token = authHeader.substring(7);
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl, supabasePublicKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
 

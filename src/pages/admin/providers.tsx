@@ -112,20 +112,8 @@ export default function SportsProvidersPage() {
   async function loadProviders() {
     setLoading(true);
     try {
-      let { data } = await (supabase as any).from("sports_feed_providers").select("*").order("priority");
-      if (!data?.length) {
-        await (supabase as any).from("sports_feed_providers").insert(demoProvider);
-        data = [demoProvider];
-      }
-      const existingOpenLiga = (data || []).find((item: ProviderRecord) => item.provider_type === "openligadb");
-      if (!existingOpenLiga) {
-        await (supabase as any).from("sports_feed_providers").insert(openLigaDemoProvider);
-        data = [openLigaDemoProvider, ...(data || [])];
-      } else if (existingOpenLiga.is_demo && existingOpenLiga.settings?.leagueShortcut !== "bl1") {
-        await (supabase as any).from("sports_feed_providers").update({ name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 }).eq("id", existingOpenLiga.id);
-        data = (data || []).map((item: ProviderRecord) => item.id === existingOpenLiga.id ? { ...item, name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 } : item);
-      }
-      setProviders((data || []).map((item: ProviderRecord) => ({ ...item, has_api_key: false })));
+      const body = await adminFetch("/api/admin/sports-providers");
+      setProviders(body.providers || []);
     } catch (error) {
       toast({ title: "Providers could not be loaded", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     } finally {
@@ -142,20 +130,7 @@ export default function SportsProvidersPage() {
         settings: { leagueId: leagueId.trim() || undefined, leagueShortcut: leagueShortcut.trim() || undefined, sport: sport.trim() || undefined },
         isEnabled: enabled, priority: providerType === "openligadb" ? 50 : 100, syncIntervalSeconds: providerType === "openligadb" ? Math.max(Number(syncInterval), 60) : Number(syncInterval),
       };
-      if (providerType === "openligadb") {
-        await (supabase as any).from("sports_feed_providers").insert({
-          ...(providerType === "openligadb" ? openLigaDemoProvider : demoProvider),
-          id: `demo-provider-${Date.now()}`,
-          name: payload.name,
-          provider_type: payload.providerType,
-          settings: payload.settings,
-          is_enabled: payload.isEnabled,
-          sync_interval_seconds: payload.syncIntervalSeconds,
-          status: payload.isEnabled ? "not_tested" : "disabled",
-        });
-      } else {
-        await adminFetch("/api/admin/sports-providers", { method: "POST", body: JSON.stringify(payload) });
-      }
+      await adminFetch("/api/admin/sports-providers", { method: "POST", body: JSON.stringify(payload) });
       setApiKey("");
       toast({ title: "Provider added", description: "Use Test first, then Sync now." });
       await loadProviders();
@@ -169,12 +144,10 @@ export default function SportsProvidersPage() {
   async function updateProvider(provider: ProviderRecord, changes: Record<string, unknown>) {
     setWorkingId(provider.id);
     try {
-      const mapped: Record<string, unknown> = {};
-      if (changes.isEnabled !== undefined) {
-        mapped.is_enabled = changes.isEnabled;
-        mapped.status = changes.isEnabled ? "not_tested" : "disabled";
-      }
-      await (supabase as any).from("sports_feed_providers").update(mapped).eq("id", provider.id);
+      await adminFetch("/api/admin/sports-providers", {
+        method: "PUT",
+        body: JSON.stringify({ id: provider.id, ...changes }),
+      });
       await loadProviders();
     } catch (error) {
       toast({ title: "Provider update failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
@@ -287,23 +260,10 @@ export default function SportsProvidersPage() {
     setWorkingId(provider.id);
     setResult(null);
     try {
-      let body: ProviderActionResult;
-      if (provider.provider_type === "openligadb") {
-        const demoQuery = `source=openligadb&leagueShortcut=${encodeURIComponent(provider.settings?.leagueShortcut || "bl1")}`;
-        const response = await fetch(`/api/demo/sports-provider?${demoQuery}`);
-        const demoBody = await response.json();
-        if (!response.ok) throw new Error(demoBody.error || "Demo provider failed");
-        if (action === "sync") await importDemoEvents(demoBody.events || []);
-        body = {
-          ok: true,
-          eventCount: demoBody.events?.length || 0,
-          sample: (demoBody.events || []).slice(0, 3).map((event: any) => ({ providerEventId: event.providerEventId, event: `${event.homeTeam} vs ${event.awayTeam}`, league: event.league.name, status: event.status, score: event.homeScore == null ? null : `${event.homeScore}-${event.awayScore || 0}`, startTime: event.startTime })),
-        };
-        const now = new Date().toISOString();
-        await (supabase as any).from("sports_feed_providers").update({ status: "healthy", last_success_at: now, last_sync_at: action === "sync" ? now : provider.last_sync_at, last_event_count: body.eventCount, last_error: null }).eq("id", provider.id);
-      } else {
-        body = await adminFetch(`/api/admin/sports-providers/${provider.id}/action`, { method: "POST", body: JSON.stringify({ action }) });
-      }
+      const body: ProviderActionResult = await adminFetch(`/api/admin/sports-providers/${provider.id}/action`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      });
       setResult(body);
       toast({ title: action === "sync" ? "Provider synced" : "Connection successful", description: `${body.eventCount} event update(s) received.` });
       await loadProviders();

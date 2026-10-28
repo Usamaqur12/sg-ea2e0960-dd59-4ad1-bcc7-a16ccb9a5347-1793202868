@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, TrendingUp, DollarSign, Users, Clock, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useRouter } from "next/router";
 
 interface RiskAlert {
   id: string;
@@ -22,6 +23,7 @@ interface RiskAlert {
 
 export default function AdminRisk() {
   const { toast } = useToast();
+  const router = useRouter();
   const [alerts, setAlerts] = useState<RiskAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unreviewed">("unreviewed");
@@ -279,7 +281,11 @@ export default function AdminRisk() {
                           <div className="text-xs text-muted-foreground">Stake</div>
                         </div>
                       )}
-                      <Button size="sm" variant="outline">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(alert.bet_id ? `/admin/bets?search=${alert.bet_id}` : `/admin/users?search=${alert.user_id}`)}
+                      >
                         Investigate
                       </Button>
                     </div>

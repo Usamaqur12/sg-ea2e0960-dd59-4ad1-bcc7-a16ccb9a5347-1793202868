@@ -8,13 +8,10 @@
     {
       "path": "/api/cron/bonuses",
       "schedule": "15 0 * * *"
-    }
-  ],
-  "redirects": [
+    },
     {
-      "source": "/old-path",
-      "destination": "/new-path",
-      "permanent": true
+      "path": "/api/cron/sports-feed",
+      "schedule": "* * * * *"
     }
   ],
   "headers": [
