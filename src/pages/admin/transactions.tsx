@@ -18,7 +18,6 @@ interface Transaction {
   amount: number;
   status: string;
   created_at: string;
-  notes: string | null;
 }
 
 export default function AdminTransactions() {
@@ -38,7 +37,7 @@ export default function AdminTransactions() {
     try {
       const { data: txs } = await supabase
         .from("wallet_transactions")
-        .select("id, user_id, type, amount, status, created_at, notes")
+        .select("id, user_id, type, amount, status, created_at")
         .order("created_at", { ascending: false })
         .limit(100);
 
@@ -81,7 +80,6 @@ export default function AdminTransactions() {
           .from("wallet_transactions")
           .update({
             status: "completed",
-            notes: notes || null,
           })
           .eq("id", selectedTx.id);
 
@@ -121,7 +119,6 @@ export default function AdminTransactions() {
           .from("wallet_transactions")
           .update({
             status: "failed",
-            notes: notes || "Rejected by admin",
           })
           .eq("id", selectedTx.id);
 
@@ -444,9 +441,6 @@ function TransactionCard({
             <div>
               {new Date(transaction.created_at).toLocaleString()}
             </div>
-            {transaction.notes && (
-              <div className="text-xs italic">{transaction.notes}</div>
-            )}
           </div>
         </div>
       </div>
