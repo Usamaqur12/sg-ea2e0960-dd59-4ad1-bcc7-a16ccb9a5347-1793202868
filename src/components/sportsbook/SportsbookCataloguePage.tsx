@@ -73,11 +73,11 @@ export function SportsbookCataloguePage({
   const loadEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchUpcomingEvents({ sportSlug, liveOnly, limit: 100 });
+    const result = await fetchUpcomingEvents(sportSlug);
     setEvents(result.events);
     setError(result.error || null);
     setLoading(false);
-  }, [liveOnly, sportSlug]);
+  }, [sportSlug]);
 
   useEffect(() => {
     void loadEvents();

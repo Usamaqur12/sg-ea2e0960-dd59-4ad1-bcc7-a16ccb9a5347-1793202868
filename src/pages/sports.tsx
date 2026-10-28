@@ -56,9 +56,12 @@ export default function Sports() {
   const loadEvents = useCallback(async () => {
     setEventsLoading(true);
     setEventsError(null);
-    const result = await fetchUpcomingEvents({ limit: 100 });
-    setEvents(result.events);
-    setEventsError(result.error || null);
+    const events = await fetchUpcomingEvents(activeSport || undefined);
+    if (!events) {
+      console.error("Failed to load events");
+    }
+    setEvents(events);
+    setEventsError(events?.error || null);
     setEventsLoading(false);
   }, []);
 

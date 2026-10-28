@@ -45,7 +45,7 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    void fetchUpcomingEvents({ limit: 24 })
+    void fetchUpcomingEvents()
       .then(({ events, error }) => {
         setSportsbookEvents(events);
         setFeedError(error ?? null);
