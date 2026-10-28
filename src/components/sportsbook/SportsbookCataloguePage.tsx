@@ -73,9 +73,9 @@ export function SportsbookCataloguePage({
   const loadEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchUpcomingEvents(sportSlug);
-    setEvents(result.events);
-    setError(result.error || null);
+    const eventsData = await fetchUpcomingEvents(sportSlug);
+    if (!eventsData) throw new Error("Failed to fetch events");
+    setEvents(eventsData);
     setLoading(false);
   }, [sportSlug]);
 

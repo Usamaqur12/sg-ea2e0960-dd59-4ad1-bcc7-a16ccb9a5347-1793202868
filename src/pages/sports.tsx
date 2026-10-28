@@ -53,17 +53,26 @@ export default function Sports() {
     setProfile({ balance: Number(data?.balance ?? 0) });
   }, []);
 
-  const loadEvents = useCallback(async () => {
-    setEventsLoading(true);
-    setEventsError(null);
-    const events = await fetchUpcomingEvents(activeSport || undefined);
-    if (!events) {
-      console.error("Failed to load events");
+  async function loadEvents() {
+    try {
+      setEventsLoading(true);
+      const eventsData = await fetchUpcomingEvents(selectedSport || undefined);
+      if (!eventsData) {
+        console.error("Failed to load events");
+        return;
+      }
+      setEvents(eventsData as any);
+    } catch (error: any) {
+      console.error("Error loading events:", error);
+      toast({
+        title: "Error loading events",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setEventsLoading(false);
     }
-    setEvents(events);
-    setEventsError(events?.error || null);
-    setEventsLoading(false);
-  }, []);
+  }
 
   const loadFavorites = useCallback(async (userId: string) => {
     const result = await getUserFavoriteEventIds(userId);
