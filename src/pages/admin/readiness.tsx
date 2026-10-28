@@ -30,14 +30,9 @@ export default function ReadinessPage() {
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true); setError("");
-    if (DEMO_BACKEND_ENABLED) {
-      const ready = demoItems.filter((item) => item.ready).length;
-      setReport({ generatedAt: new Date().toISOString(), score: Math.round((ready / demoItems.length) * 100), ready, total: demoItems.length, items: demoItems }); setLoading(false); return;
-    }
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch("/api/admin/readiness", { headers: { authorization: `Bearer ${session?.access_token || ""}` } });
-    const body = await response.json();
-    if (!response.ok) setError(body.error || "Readiness report could not load"); else setReport(body as Report);
+    const result = await fetch("/api/admin/readiness");
+    const body = await result.json();
+    if (!result.ok) setError(body.error || "Readiness report could not load"); else setReport(body as Report);
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);

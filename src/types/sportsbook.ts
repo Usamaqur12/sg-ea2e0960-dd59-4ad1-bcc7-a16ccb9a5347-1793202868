@@ -31,3 +31,34 @@ export interface SportsbookEvent {
   outcomes: Partial<Record<"Home" | "Draw" | "Away", SportsbookOutcome>>;
   markets: SportsbookMarket[];
 }
+
+export interface BetSlipItem {
+  eventId: string;
+  marketId: string;
+  oddsId: string;
+  selection: string;
+  odds: number;
+  eventName?: string;
+  marketName?: string;
+}
+
+export interface Event {
+  id: string;
+  home_team: string;
+  away_team: string;
+  start_time: string;
+  status: string;
+}
+
+export interface Market {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+}
+
+export interface Selection {
+  id: string;
+  selection: string;
+  value: number;
+}

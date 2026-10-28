@@ -1,5 +1,6 @@
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -111,25 +112,20 @@ export default function SportsProvidersPage() {
   async function loadProviders() {
     setLoading(true);
     try {
-      if (DEMO_BACKEND_ENABLED) {
-        let { data } = await (supabase as any).from("sports_feed_providers").select("*").order("priority");
-        if (!data?.length) {
-          await (supabase as any).from("sports_feed_providers").insert(demoProvider);
-          data = [demoProvider];
-        }
-        const existingOpenLiga = (data || []).find((item: ProviderRecord) => item.provider_type === "openligadb");
-        if (!existingOpenLiga) {
-          await (supabase as any).from("sports_feed_providers").insert(openLigaDemoProvider);
-          data = [openLigaDemoProvider, ...(data || [])];
-        } else if (existingOpenLiga.is_demo && existingOpenLiga.settings?.leagueShortcut !== "bl1") {
-          await (supabase as any).from("sports_feed_providers").update({ name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 }).eq("id", existingOpenLiga.id);
-          data = (data || []).map((item: ProviderRecord) => item.id === existingOpenLiga.id ? { ...item, name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 } : item);
-        }
-        setProviders((data || []).map((item: ProviderRecord) => ({ ...item, has_api_key: false })));
-      } else {
-        const body = await adminFetch("/api/admin/sports-providers");
-        setProviders(body.providers || []);
+      let { data } = await (supabase as any).from("sports_feed_providers").select("*").order("priority");
+      if (!data?.length) {
+        await (supabase as any).from("sports_feed_providers").insert(demoProvider);
+        data = [demoProvider];
       }
+      const existingOpenLiga = (data || []).find((item: ProviderRecord) => item.provider_type === "openligadb");
+      if (!existingOpenLiga) {
+        await (supabase as any).from("sports_feed_providers").insert(openLigaDemoProvider);
+        data = [openLigaDemoProvider, ...(data || [])];
+      } else if (existingOpenLiga.is_demo && existingOpenLiga.settings?.leagueShortcut !== "bl1") {
+        await (supabase as any).from("sports_feed_providers").update({ name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 }).eq("id", existingOpenLiga.id);
+        data = (data || []).map((item: ProviderRecord) => item.id === existingOpenLiga.id ? { ...item, name: openLigaDemoProvider.name, settings: openLigaDemoProvider.settings, sync_interval_seconds: 60 } : item);
+      }
+      setProviders((data || []).map((item: ProviderRecord) => ({ ...item, has_api_key: false })));
     } catch (error) {
       toast({ title: "Providers could not be loaded", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
     } finally {
@@ -138,10 +134,6 @@ export default function SportsProvidersPage() {
   }
 
   async function createProvider() {
-    if (DEMO_BACKEND_ENABLED && !["thesportsdb_demo", "openligadb"].includes(providerType)) {
-      toast({ title: "Production database required", description: "Real provider credentials are deliberately not saved in browser-local demo mode.", variant: "destructive" });
-      return;
-    }
     if (!name.trim()) return;
     setWorkingId("create");
     try {
@@ -150,9 +142,9 @@ export default function SportsProvidersPage() {
         settings: { leagueId: leagueId.trim() || undefined, leagueShortcut: leagueShortcut.trim() || undefined, sport: sport.trim() || undefined },
         isEnabled: enabled, priority: providerType === "openligadb" ? 50 : 100, syncIntervalSeconds: providerType === "openligadb" ? Math.max(Number(syncInterval), 60) : Number(syncInterval),
       };
-      if (DEMO_BACKEND_ENABLED) {
+      if (providerType === "openligadb") {
         await (supabase as any).from("sports_feed_providers").insert({
-          ...(payload.providerType === "openligadb" ? openLigaDemoProvider : demoProvider),
+          ...(providerType === "openligadb" ? openLigaDemoProvider : demoProvider),
           id: `demo-provider-${Date.now()}`,
           name: payload.name,
           provider_type: payload.providerType,
@@ -177,16 +169,12 @@ export default function SportsProvidersPage() {
   async function updateProvider(provider: ProviderRecord, changes: Record<string, unknown>) {
     setWorkingId(provider.id);
     try {
-      if (DEMO_BACKEND_ENABLED) {
-        const mapped: Record<string, unknown> = {};
-        if (changes.isEnabled !== undefined) {
-          mapped.is_enabled = changes.isEnabled;
-          mapped.status = changes.isEnabled ? "not_tested" : "disabled";
-        }
-        await (supabase as any).from("sports_feed_providers").update(mapped).eq("id", provider.id);
-      } else {
-        await adminFetch("/api/admin/sports-providers", { method: "PATCH", body: JSON.stringify({ id: provider.id, ...changes }) });
+      const mapped: Record<string, unknown> = {};
+      if (changes.isEnabled !== undefined) {
+        mapped.is_enabled = changes.isEnabled;
+        mapped.status = changes.isEnabled ? "not_tested" : "disabled";
       }
+      await (supabase as any).from("sports_feed_providers").update(mapped).eq("id", provider.id);
       await loadProviders();
     } catch (error) {
       toast({ title: "Provider update failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
@@ -195,12 +183,11 @@ export default function SportsProvidersPage() {
     }
   }
 
-  async function deleteProvider(provider: ProviderRecord) {
-    if (!window.confirm(`Delete ${provider.name}? Existing imported events will remain in the catalogue.`)) return;
-    setWorkingId(provider.id);
+  async function deleteProvider(id: string) {
+    if (!window.confirm(`Delete ${id}? Existing imported events will remain in the catalogue.`)) return;
+    setWorkingId(id);
     try {
-      if (DEMO_BACKEND_ENABLED) await (supabase as any).from("sports_feed_providers").delete().eq("id", provider.id);
-      else await adminFetch(`/api/admin/sports-providers?id=${provider.id}`, { method: "DELETE" });
+      await adminFetch(`/api/admin/sports-providers?id=${id}`, { method: "DELETE" });
       toast({ title: "Provider removed" });
       await loadProviders();
     } catch (error) {
@@ -301,10 +288,8 @@ export default function SportsProvidersPage() {
     setResult(null);
     try {
       let body: ProviderActionResult;
-      if (DEMO_BACKEND_ENABLED) {
-        const demoQuery = provider.provider_type === "openligadb"
-          ? `source=openligadb&leagueShortcut=${encodeURIComponent(provider.settings?.leagueShortcut || "bl1")}`
-          : `source=thesportsdb&leagueId=${encodeURIComponent(provider.settings?.leagueId || "4328")}`;
+      if (provider.provider_type === "openligadb") {
+        const demoQuery = `source=openligadb&leagueShortcut=${encodeURIComponent(provider.settings?.leagueShortcut || "bl1")}`;
         const response = await fetch(`/api/demo/sports-provider?${demoQuery}`);
         const demoBody = await response.json();
         if (!response.ok) throw new Error(demoBody.error || "Demo provider failed");
@@ -353,12 +338,6 @@ export default function SportsProvidersPage() {
           </div>
         </div>
 
-        {DEMO_BACKEND_ENABLED && (
-          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
-            OpenLigaDB&apos;s public feed is connected and automatically synced once per browser session. It provides real community scores for preview; certified betting results still require a licensed provider and production Supabase.
-          </div>
-        )}
-
         <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
           <Card>
             <CardHeader><CardTitle>Add provider</CardTitle><CardDescription>Add the connection here; secrets are never returned after saving.</CardDescription></CardHeader>
@@ -381,7 +360,7 @@ export default function SportsProvidersPage() {
                   <div key={provider.id} className="rounded-lg border border-border p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{provider.name}</h3><Badge variant={provider.status === "healthy" ? "outline" : provider.status === "error" ? "destructive" : "secondary"}>{provider.status.replace(/_/g, " ")}</Badge>{provider.is_demo && <Badge variant="secondary">Preview</Badge>}</div><p className="mt-1 text-xs text-muted-foreground">{providerLabels[provider.provider_type]} · every {provider.sync_interval_seconds}s · {provider.last_event_count || 0} last events</p>{provider.last_success_at && <p className="mt-1 text-xs text-muted-foreground">Last success: {new Date(provider.last_success_at).toLocaleString()}</p>}{provider.last_error && <p className="mt-1 text-xs text-destructive">{provider.last_error}</p>}</div>
-                      <div className="flex items-center gap-2"><Switch checked={provider.is_enabled} onCheckedChange={(checked) => void updateProvider(provider, { isEnabled: checked })} disabled={workingId === provider.id} /><Button size="icon" variant="ghost" className="text-destructive" onClick={() => void deleteProvider(provider)} disabled={workingId === provider.id} aria-label="Delete provider"><Trash2 className="h-4 w-4" /></Button></div>
+                      <div className="flex items-center gap-2"><Switch checked={provider.is_enabled} onCheckedChange={(checked) => void updateProvider(provider, { isEnabled: checked })} disabled={workingId === provider.id} /><Button size="icon" variant="ghost" className="text-destructive" onClick={() => void deleteProvider(provider.id)} disabled={workingId === provider.id} aria-label="Delete provider"><Trash2 className="h-4 w-4" /></Button></div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => void runAction(provider, "test")} disabled={workingId === provider.id}><Activity className="mr-2 h-4 w-4" />Test connection</Button><Button size="sm" onClick={() => void runAction(provider, "sync")} disabled={!provider.is_enabled || workingId === provider.id}><Save className="mr-2 h-4 w-4" />Sync now</Button></div>
                   </div>

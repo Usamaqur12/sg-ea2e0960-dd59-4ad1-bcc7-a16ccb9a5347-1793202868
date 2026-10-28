@@ -18,18 +18,9 @@ export function InfoPageLayout({ title, intro, children }: InfoPageLayoutProps) 
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
       <Header user={null} onAuthClick={() => router.push("/auth/login")} />
-      <main className="flex-1 container py-10 px-4">
-        <div className="max-w-3xl mx-auto">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary mb-2">
-            {siteConfig.demoMode ? "Demo platform" : siteConfig.name}
-          </p>
-          <h1 className="text-3xl md:text-4xl font-black mb-3">{title}</h1>
-          <p className="text-muted-foreground leading-relaxed mb-8">{intro}</p>
-          <Card className="surface">
-            <CardContent className="p-6 md:p-8 prose-content space-y-6 text-sm leading-relaxed">
-              {children}
-            </CardContent>
-          </Card>
+      <main className="max-w-4xl mx-auto px-4 py-12">
+        <div className="prose prose-slate dark:prose-invert max-w-none">
+          {children}
         </div>
       </main>
       <Footer />
