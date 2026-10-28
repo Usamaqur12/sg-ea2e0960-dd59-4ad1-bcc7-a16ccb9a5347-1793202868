@@ -228,7 +228,7 @@ export function WithdrawalModal({
         <DialogHeader>
           <DialogTitle>Withdraw Funds</DialogTitle>
           <DialogDescription>
-            Request a withdrawal from your account.
+            Withdraw funds from your account.
           </DialogDescription>
         </DialogHeader>
 
