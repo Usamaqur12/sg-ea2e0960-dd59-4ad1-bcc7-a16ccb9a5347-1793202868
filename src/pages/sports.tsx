@@ -19,7 +19,7 @@ import {
 } from "@/components/sportsbook/SportsbookToolbar";
 import { useBetSlip } from "@/hooks/useBetSlip";
 import { placeBet, type OddsAcceptance } from "@/services/bettingService";
-import { getSportsbookEvents } from "@/services/sportsbookService";
+import { fetchUpcomingEvents } from "@/services/sportsbookService";
 import { getUserFavoriteEventIds, toggleFavorite } from "@/services/favoritesService";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ export default function Sports() {
   const loadEvents = useCallback(async () => {
     setEventsLoading(true);
     setEventsError(null);
-    const result = await getSportsbookEvents({ limit: 100 });
+    const result = await fetchUpcomingEvents({ limit: 100 });
     setEvents(result.events);
     setEventsError(result.error || null);
     setEventsLoading(false);

@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { SearchModal } from "./SearchModal";
-import { siteConfig } from "@/config/site";
 import { getNotifications, markAllNotificationsRead, markNotificationRead, type UserNotification } from "@/services/notificationsService";
 import { useI18n } from "@/lib/i18n";
 
@@ -132,7 +131,7 @@ export function Header({ user, onAuthClick }: HeaderProps) {
                   onClick={() => router.push("/account/wallet")}
                   className="hidden sm:flex h-7 px-3 text-xs font-bold bg-primary-bright hover:bg-primary-hover text-background glow-green-bright"
                 >
-                  {siteConfig.demoMode ? t("demoWallet") : t("wallet")}
+                  {t("wallet")}
                 </Button>
 
                 {/* Notifications */}
@@ -165,7 +164,7 @@ export function Header({ user, onAuthClick }: HeaderProps) {
                   <DropdownMenuContent align="end" className="w-52">
                     <div className="p-2 border-b border-border">
                       <p className="text-xs font-semibold truncate">{user.email}</p>
-                      <p className="text-[10px] text-muted-foreground">{siteConfig.demoMode ? t("demoAccount") : t("account")}</p>
+                      <p className="text-[10px] text-muted-foreground">{t("account")}</p>
                     </div>
                     <DropdownMenuItem onClick={() => router.push("/account")} className="text-xs">
                       <User className="mr-2 h-3.5 w-3.5" />

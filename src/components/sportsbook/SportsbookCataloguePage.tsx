@@ -19,7 +19,7 @@ import {
 } from "@/components/sportsbook/SportsbookToolbar";
 import { useBetSlip } from "@/hooks/useBetSlip";
 import { placeBet, type OddsAcceptance } from "@/services/bettingService";
-import { getSportsbookEvents } from "@/services/sportsbookService";
+import { fetchUpcomingEvents } from "@/services/sportsbookService";
 import { getUserFavoriteEventIds, toggleFavorite } from "@/services/favoritesService";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -73,7 +73,7 @@ export function SportsbookCataloguePage({
   const loadEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await getSportsbookEvents({ sportSlug, liveOnly, limit: 100 });
+    const result = await fetchUpcomingEvents({ sportSlug, liveOnly, limit: 100 });
     setEvents(result.events);
     setError(result.error || null);
     setLoading(false);

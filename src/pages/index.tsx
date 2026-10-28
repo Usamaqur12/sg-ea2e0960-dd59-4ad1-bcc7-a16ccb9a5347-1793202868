@@ -9,7 +9,7 @@ import { EventCard } from "@/components/sportsbook/EventCard";
 import { EventRow } from "@/components/sportsbook/EventRow";
 import { EventMarketsModal } from "@/components/sportsbook/EventMarketsModal";
 import { useBetSlip } from "@/hooks/useBetSlip";
-import { getSportsbookEvents } from "@/services/sportsbookService";
+import { fetchUpcomingEvents } from "@/services/sportsbookService";
 import { placeBet, type OddsAcceptance } from "@/services/bettingService";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,7 +45,7 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
-    void getSportsbookEvents({ limit: 24 })
+    void fetchUpcomingEvents({ limit: 24 })
       .then(({ events, error }) => {
         setSportsbookEvents(events);
         setFeedError(error ?? null);

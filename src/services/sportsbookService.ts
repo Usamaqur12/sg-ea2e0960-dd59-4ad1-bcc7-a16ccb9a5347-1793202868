@@ -52,6 +52,12 @@ export async function fetchMarketsByEventId(eventId: string) {
 }
 
 export async function fetchOddsByMarketId(marketId: string): Promise<Odds[]> {
+  const { data: odds } = await db
+    .from("odds")
+    .select("*")
+    .eq("market_id", marketId)
+    .eq("is_active", true);
+  return odds || [];
 }
 
 export async function enrichMarketWithOdds(market: Market): Promise<Market & { odds: Odds[] }> {
@@ -60,7 +66,13 @@ export async function enrichMarketWithOdds(market: Market): Promise<Market & { o
 }
 
 export async function enrichEventWithMarkets(event: Event): Promise<Event & { markets: Array<Market & { odds: Odds[] }> }> {
+  const markets = await fetchMarketsByEventId(event.id);
+  const enrichedMarkets = await Promise.all(markets.map(enrichMarketWithOdds));
+  return { ...event, markets: enrichedMarkets };
 }
 
 export async function fetchEventDetails(eventId: string): Promise<(Event & { markets: Array<Market & { odds: Odds[] }> }) | null> {
+  const event = await fetchEventById(eventId);
+  if (!event) return null;
+  return enrichEventWithMarkets(event);
 }
