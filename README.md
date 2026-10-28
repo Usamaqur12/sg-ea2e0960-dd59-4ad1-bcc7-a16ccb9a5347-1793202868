@@ -32,7 +32,7 @@ These credentials are only accepted by the browser-local demo backend. They are 
 
 ## Database
 
-Apply the ordered files in `supabase/migrations`, or use the generated installer in `database/01_primebet_complete_schema.sql` for a new empty project. The installer currently includes 53 migrations. Promote the first administrator using `database/03_promote_first_admin.sql`. Admin dashboard login supports password authentication as requested; MFA remains strongly recommended and sensitive finance/KYC approval functions may still require higher assurance.
+Apply the ordered files in `supabase/migrations`, or use the generated installer in `database/01_primebet_complete_schema.sql` for a new empty project. The installer currently includes 54 migrations. Promote the first administrator using `database/03_promote_first_admin.sql`. Admin dashboard login supports password authentication as requested; MFA remains strongly recommended and sensitive finance/KYC approval functions may still require higher assurance.
 
 ## Production activation
 

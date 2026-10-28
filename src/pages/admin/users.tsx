@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, UserCheck, Ban, Mail, Phone, Calendar, Wallet, AlertTriangle } from "lucide-react";
 import Link from "next/link";
@@ -29,10 +31,75 @@ export default function AdminUsers() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [kycFilter, setKycFilter] = useState("all");
+  const [currentAdminRole, setCurrentAdminRole] = useState("");
+  const [balanceUser, setBalanceUser] = useState<User | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditReason, setCreditReason] = useState("");
+  const [creditKey, setCreditKey] = useState("");
+  const [crediting, setCrediting] = useState(false);
 
   useEffect(() => {
     void loadUsers();
+    void loadCurrentAdminRole();
   }, []);
+
+  async function loadCurrentAdminRole() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase.from("profiles").select("admin_role").eq("id", user.id).maybeSingle();
+    setCurrentAdminRole(data?.admin_role || "");
+  }
+
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`,
+        ...(init?.headers || {}),
+      },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Admin request failed");
+    return body;
+  }
+
+  function openBalanceCredit(user: User) {
+    setBalanceUser(user);
+    setCreditAmount("");
+    setCreditReason("");
+    setCreditKey(crypto.randomUUID());
+  }
+
+  async function creditUserBalance() {
+    if (!balanceUser) return;
+    const amount = Number(creditAmount);
+    if (!Number.isFinite(amount) || amount < 0.01 || amount > 100000 || creditReason.trim().length < 5) {
+      toast({ title: "Invalid adjustment", description: "Enter 0.01–100000.00 and a reason of at least 5 characters.", variant: "destructive" });
+      return;
+    }
+    setCrediting(true);
+    try {
+      const body = await adminFetch("/api/admin/users/credit-balance", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: balanceUser.id,
+          amount,
+          reason: creditReason.trim(),
+          idempotencyKey: creditKey,
+        }),
+      });
+      toast({ title: "Balance credited", description: `New balance: $${Number(body.result?.balance || 0).toFixed(2)}` });
+      setBalanceUser(null);
+      await loadUsers();
+    } catch (error) {
+      toast({ title: "Balance credit failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setCrediting(false);
+    }
+  }
 
   async function loadUsers() {
     try {
@@ -280,6 +347,11 @@ export default function AdminUsers() {
                     </div>
                     <div className="flex items-center gap-3">
                       {getKycBadge(user.kyc_status)}
+                      {["super_admin", "admin", "finance"].includes(currentAdminRole) && (
+                        <Button size="sm" variant="default" onClick={() => openBalanceCredit(user)}>
+                          <Wallet className="mr-1 h-4 w-4" /> Add Balance
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant={user.is_suspended ? "outline" : "destructive"}
@@ -298,6 +370,37 @@ export default function AdminUsers() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={Boolean(balanceUser)} onOpenChange={(open) => !open && !crediting && setBalanceUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add user balance</DialogTitle>
+            <DialogDescription>
+              Credit cash balance for {balanceUser?.email}. This creates a wallet transaction, ledger journal and audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border p-3 text-sm">
+              Current balance: <span className="font-mono font-bold">${balanceUser?.wallet_balance.toFixed(2)}</span>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="credit-amount">Amount (USD)</Label>
+              <Input id="credit-amount" type="number" min="0.01" max="100000" step="0.01" value={creditAmount} onChange={(event) => setCreditAmount(event.target.value)} placeholder="100.00" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="credit-reason">Reason</Label>
+              <Input id="credit-reason" value={creditReason} onChange={(event) => setCreditReason(event.target.value)} maxLength={500} placeholder="Manual deposit verified" />
+              <p className="text-xs text-muted-foreground">The reason is permanently recorded in the transaction and audit log.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBalanceUser(null)} disabled={crediting}>Cancel</Button>
+            <Button onClick={() => void creditUserBalance()} disabled={crediting}>
+              {crediting ? "Crediting…" : "Confirm credit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }

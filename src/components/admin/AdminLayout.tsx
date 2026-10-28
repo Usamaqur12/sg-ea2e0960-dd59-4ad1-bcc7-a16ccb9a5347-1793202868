@@ -92,11 +92,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   // Filter navigation based on role
   const navItems = allNavItems.filter(item => {
-    // Super admin and admin see everything
-    if (adminRole === "super_admin" || adminRole === "admin") return true;
-    
     // Super admin only items
-    if (item.superAdminOnly) return false;
+    if (item.superAdminOnly) return adminRole === "super_admin";
+
+    // Super admin and generic admin see all non-privileged sections
+    if (adminRole === "super_admin" || adminRole === "admin") return true;
     
     // Dashboard and readiness are visible to all admins
     if (item.areas.length === 0) return true;

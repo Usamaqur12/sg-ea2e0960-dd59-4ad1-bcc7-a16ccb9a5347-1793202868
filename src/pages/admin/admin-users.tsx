@@ -29,8 +29,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, UserPlus, Trash2, Edit } from "lucide-react";
-import { ADMIN_ROLES } from "@/lib/adminRoles";
+import { Shield, UserPlus, Trash2 } from "lucide-react";
+import { useRouter } from "next/router";
 
 interface AdminUser {
   id: string;
@@ -49,49 +49,44 @@ export default function AdminUsersPage() {
   const [processing, setProcessing] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<string>("admin");
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
-    loadCurrentUser();
-    loadAdmins();
+    void loadAdmins();
   }, []);
 
-  async function loadCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("admin_role")
-      .eq("id", user.id)
-      .single();
-
-    setCurrentUserRole(profile?.admin_role || "admin");
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${session.access_token}`,
+        ...(init?.headers || {}),
+      },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Admin request failed");
+    return body;
   }
 
   async function loadAdmins() {
     try {
-      // Get current user's role first
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("admin_role")
-          .eq("id", user.id)
-          .single();
-        
-        if (profile?.admin_role) {
-          setCurrentUserRole(profile.admin_role);
-        }
-      }
-
-      const { data, error } = await supabase
+      if (!user) return void router.replace("/admin/login");
+      const { data: profile } = await supabase
         .from("profiles")
-        .select("id, email, admin_role, is_suspended, created_at")
-        .eq("is_admin", true)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setAdmins(data || []);
+        .select("admin_role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (profile?.admin_role !== "super_admin") {
+        toast({ title: "Access denied", description: "Super admin access required", variant: "destructive" });
+        return void router.replace("/admin");
+      }
+      setCurrentUserRole("super_admin");
+      const body = await adminFetch("/api/admin/admin-users");
+      setAdmins(body.admins || []);
     } catch (error: any) {
       toast({
         title: "Error loading admins",
@@ -114,45 +109,11 @@ export default function AdminUsersPage() {
     }
 
     try {
-      setLoading(true);
-
-      // Check if user exists
-      const { data: existingUser, error: searchError } = await supabase
-        .from("profiles")
-        .select("id, email, is_admin")
-        .eq("email", newAdminEmail.toLowerCase())
-        .maybeSingle();
-
-      if (searchError) throw searchError;
-
-      if (!existingUser) {
-        toast({
-          title: "User not found",
-          description: "This email is not registered. User must register first.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (existingUser.is_admin) {
-        toast({
-          title: "Already an admin",
-          description: "This user is already an admin.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Promote to admin
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          is_admin: true,
-          admin_role: newAdminRole,
-        })
-        .eq("id", existingUser.id);
-
-      if (updateError) throw updateError;
+      setProcessing(true);
+      await adminFetch("/api/admin/admin-users", {
+        method: "POST",
+        body: JSON.stringify({ email: newAdminEmail, role: newAdminRole }),
+      });
 
       toast({
         title: "Admin added",
@@ -162,7 +123,7 @@ export default function AdminUsersPage() {
       setShowAddDialog(false);
       setNewAdminEmail("");
       setNewAdminRole("admin");
-      loadAdmins();
+      await loadAdmins();
     } catch (error: any) {
       toast({
         title: "Error adding admin",
@@ -170,7 +131,7 @@ export default function AdminUsersPage() {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setProcessing(false);
     }
   }
 
@@ -178,22 +139,14 @@ export default function AdminUsersPage() {
     if (!confirm(`Remove admin access for ${email}?`)) return;
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          is_admin: false,
-          admin_role: null,
-        })
-        .eq("id", adminId);
-
-      if (error) throw error;
+      await adminFetch(`/api/admin/admin-users?id=${encodeURIComponent(adminId)}`, { method: "DELETE" });
 
       toast({
         title: "Admin removed",
         description: `${email} no longer has admin access`,
       });
 
-      loadAdmins();
+      await loadAdmins();
     } catch (error: any) {
       toast({
         title: "Error removing admin",
@@ -205,18 +158,16 @@ export default function AdminUsersPage() {
 
   async function handleToggleSuspend(adminId: string, currentStatus: boolean) {
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_suspended: !currentStatus })
-        .eq("id", adminId);
-
-      if (error) throw error;
+      await adminFetch("/api/admin/admin-users", {
+        method: "PATCH",
+        body: JSON.stringify({ id: adminId, suspended: !currentStatus }),
+      });
 
       toast({
         title: currentStatus ? "Admin unsuspended" : "Admin suspended",
       });
 
-      loadAdmins();
+      await loadAdmins();
     } catch (error: any) {
       toast({
         title: "Error updating admin",
@@ -378,10 +329,6 @@ export default function AdminUsersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Admin (Full Access)</SelectItem>
-                  {/* Super admin option only visible to super admins */}
-                  {currentUserRole === "super_admin" && (
-                    <SelectItem value="super_admin">Super Admin (Ultimate Access)</SelectItem>
-                  )}
                   <SelectItem value="finance">Finance</SelectItem>
                   <SelectItem value="kyc">KYC</SelectItem>
                   <SelectItem value="support">Support</SelectItem>
@@ -404,8 +351,8 @@ export default function AdminUsersPage() {
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddAdmin} disabled={loading}>
-              Add Admin
+            <Button onClick={handleAddAdmin} disabled={processing}>
+              {processing ? "Adding…" : "Add Admin"}
             </Button>
           </DialogFooter>
         </DialogContent>
