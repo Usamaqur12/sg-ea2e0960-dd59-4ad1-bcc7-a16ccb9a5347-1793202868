@@ -157,11 +157,9 @@ export function Header({ user, onAuthClick }: HeaderProps) {
                 {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-1.5 h-8 px-2">
-                      <div className="w-6 h-6 rounded-full bg-primary/15 border border-primary/30 flex items-center justify-center">
-                        <User className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <ChevronDown className="h-3 w-3 hidden sm:block" />
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <User className="h-4 w-4" />
+                      <span className="hidden md:inline">{user?.email?.split("@")[0] || "Account"}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-52">
@@ -198,11 +196,18 @@ export function Header({ user, onAuthClick }: HeaderProps) {
                 <Button variant="ghost" size="sm" onClick={onAuthClick} className="hidden sm:flex h-7 px-3 text-xs font-semibold">
                   {t("login")}
                 </Button>
-                <Button asChild variant="ghost" size="sm">
-                  <Link href="/register">
-                    Register
-                  </Link>
-                </Button>
+                {!user && (
+                  <>
+                    <Button asChild variant="ghost" size="sm">
+                      <Link href="/login">Login</Link>
+                    </Button>
+                    <Button asChild size="sm">
+                      <Link href="/register">
+                        Register
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>
