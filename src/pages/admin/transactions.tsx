@@ -17,7 +17,6 @@ interface Transaction {
   type: string;
   amount: number;
   status: string;
-  payment_method: string | null;
   created_at: string;
   processed_at: string | null;
   notes: string | null;
@@ -40,7 +39,7 @@ export default function AdminTransactions() {
     try {
       const { data: txs } = await supabase
         .from("wallet_transactions")
-        .select("id, user_id, type, amount, status, payment_method, created_at, processed_at, notes")
+        .select("id, user_id, type, amount, status, created_at, processed_at, notes")
         .order("created_at", { ascending: false })
         .limit(100);
 
@@ -107,7 +106,7 @@ export default function AdminTransactions() {
         }
 
         // Send notification
-        await supabase.from("user_notifications").insert({
+        await (supabase as any).from("user_notifications").insert({
           user_id: selectedTx.user_id,
           type: "transaction",
           title: "Transaction Approved",
@@ -132,7 +131,7 @@ export default function AdminTransactions() {
         if (error) throw error;
 
         // Send notification
-        await supabase.from("user_notifications").insert({
+        await (supabase as any).from("user_notifications").insert({
           user_id: selectedTx.user_id,
           type: "transaction",
           title: "Transaction Rejected",
@@ -351,7 +350,6 @@ export default function AdminTransactions() {
                   <div><strong>User:</strong> {selectedTx.user_email}</div>
                   <div><strong>Type:</strong> {selectedTx.type}</div>
                   <div><strong>Amount:</strong> ${selectedTx.amount.toFixed(2)}</div>
-                  <div><strong>Method:</strong> {selectedTx.payment_method || "N/A"}</div>
                 </div>
               )}
             </DialogDescription>
@@ -448,7 +446,6 @@ function TransactionCard({
             <div>{transaction.user_email}</div>
             <div>
               {new Date(transaction.created_at).toLocaleString()}
-              {transaction.payment_method && ` · ${transaction.payment_method}`}
             </div>
             {transaction.notes && (
               <div className="text-xs italic">{transaction.notes}</div>

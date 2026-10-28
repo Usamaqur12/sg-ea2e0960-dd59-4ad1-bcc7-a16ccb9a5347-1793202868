@@ -72,7 +72,7 @@ export function NotificationManager() {
           // Save subscription to database
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            await supabase.from("push_subscriptions").upsert({
+            await (supabase as any).from("push_subscriptions").upsert({
               user_id: user.id,
               subscription: subscription.toJSON(),
             });
@@ -129,7 +129,7 @@ export async function sendBetOutcomeNotification(userId: string, betId: string, 
     ? `Congratulations! You won $${amount.toFixed(2)}`
     : `Your bet was settled. Better luck next time!`;
 
-  await supabase.from("user_notifications").insert({
+  await (supabase as any).from("user_notifications").insert({
     user_id: userId,
     type: "bet_outcome",
     title,
@@ -139,7 +139,7 @@ export async function sendBetOutcomeNotification(userId: string, betId: string, 
 }
 
 export async function sendPlatformAnnouncement(userId: string, title: string, message: string) {
-  await supabase.from("user_notifications").insert({
+  await (supabase as any).from("user_notifications").insert({
     user_id: userId,
     type: "announcement",
     title,

@@ -17,7 +17,6 @@ interface User {
   kyc_status: string;
   is_suspended: boolean;
   created_at: string;
-  last_login_at: string | null;
   wallet_balance: number;
   total_bets: number;
   total_deposits: number;
@@ -40,7 +39,7 @@ export default function AdminUsers() {
       // Get profiles with wallet and betting stats
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, email, full_name, kyc_status, is_suspended, created_at, last_login_at")
+        .select("id, email, full_name, kyc_status, is_suspended, created_at")
         .eq("is_admin", false)
         .order("created_at", { ascending: false });
 
@@ -82,7 +81,6 @@ export default function AdminUsers() {
           kyc_status: p.kyc_status || "not_submitted",
           is_suspended: p.is_suspended || false,
           created_at: p.created_at,
-          last_login_at: p.last_login_at,
           wallet_balance: walletMap.get(p.id) || 0,
           total_bets: betCountMap.get(p.id) || 0,
           total_deposits: depositMap.get(p.id) || 0,
