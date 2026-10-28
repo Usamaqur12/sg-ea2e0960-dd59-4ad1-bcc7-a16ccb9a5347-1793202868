@@ -17,6 +17,7 @@ import {
   X, AlertTriangle, Info, CheckCircle, Megaphone
 } from "lucide-react";
 import Link from "next/link";
+import { SEO } from "@/components/seo";
 
 interface Announcement {
   id: string;
@@ -215,6 +216,11 @@ export default function Account() {
 
   return (
     <div className="min-h-screen flex flex-col bg-background pb-14 lg:pb-0">
+      <SEO 
+        title="My Account"
+        description="Manage your account, betting history, and preferences"
+      />
+
       <Header
         user={
           profile
