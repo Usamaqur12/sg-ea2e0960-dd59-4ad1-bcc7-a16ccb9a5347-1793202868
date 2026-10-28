@@ -8,7 +8,7 @@ const promos = [
   {
     id: 1,
     title: "Welcome Bonus: $10,000 Demo Balance",
-    subtitle: "Start betting with play money. No risk, pure excitement!",
+    subtitle: "Get started with exclusive welcome offers!",
     cta: "Sign Up Now",
     href: "/auth/register",
     gradient: "from-primary/15 via-primary/5 to-transparent",
