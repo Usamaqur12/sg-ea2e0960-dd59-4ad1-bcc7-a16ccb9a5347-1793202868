@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 interface WalletBalance {
   balance: number;
   currency: string;
-  last_transaction_at: string | null;
 }
 
 interface WalletDisplayProps {
@@ -61,7 +60,7 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
       // Get wallet account
       const { data: wallet, error } = await supabase
         .from("wallet_accounts")
-        .select("balance, currency, last_transaction_at")
+        .select("balance, currency")
         .eq("user_id", targetUserId)
         .single();
 
@@ -175,16 +174,6 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
                   </span>
                 </>
               )}
-            </div>
-          )}
-
-          {/* Additional Details */}
-          {showDetails && balance.last_transaction_at && (
-            <div className="space-y-2 pt-4 border-t">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Last transaction:</span>
-                <span>{new Date(balance.last_transaction_at).toLocaleDateString()}</span>
-              </div>
             </div>
           )}
         </div>

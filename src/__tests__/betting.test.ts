@@ -11,6 +11,7 @@ const expect = (value: any) => ({
   toBeLessThan: (expected: any) => value < expected,
   toBeGreaterThan: (expected: any) => value > expected,
   toBeGreaterThanOrEqual: (expected: any) => value >= expected,
+  toBeLessThanOrEqual: (expected: any) => value <= expected,
   toBeCloseTo: (expected: any, precision: number) => Math.abs(value - expected) < Math.pow(10, -precision),
   toContain: (expected: any) => Array.isArray(value) && value.includes(expected),
   not: {
