@@ -75,7 +75,7 @@ export function SportsbookCataloguePage({
     setError(null);
     const eventsData = await fetchUpcomingEvents(sportSlug);
     if (!eventsData) throw new Error("Failed to fetch events");
-    setEvents(eventsData);
+    setEvents(eventsData as any);
     setLoading(false);
   }, [sportSlug]);
 
