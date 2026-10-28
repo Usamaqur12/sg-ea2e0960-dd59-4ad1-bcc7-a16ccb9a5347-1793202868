@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureUserProfile } from "@/services/authService";
+import { authService } from "@/services/authService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,20 +33,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { user, error: authError } = await authService.signIn(email.trim(), password);
 
       if (authError) {
-        throw authError;
+        throw new Error(authError.message);
       }
 
-      if (data.user) {
-        const profileError = await ensureUserProfile(data.user);
-        if (profileError) {
-          throw new Error(profileError.message);
-        }
+      if (!user) {
+        throw new Error("Authentication failed");
       }
 
       const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
