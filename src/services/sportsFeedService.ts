@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
+const db = supabase;
+
 /**
  * SPORTS FEED / PROVIDER ABSTRACTION LAYER
  * 
@@ -261,7 +263,7 @@ class SportsFeedManager {
   ) {
     try {
       // Get existing health record
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from("provider_health")
         .select("*")
         .eq("provider_name", providerName)
@@ -288,7 +290,7 @@ class SportsFeedManager {
           newStatus = "active";
         }
 
-        await supabase
+        await db
           .from("provider_health")
           .update({
             status: newStatus,
@@ -306,7 +308,7 @@ class SportsFeedManager {
           .eq("provider_type", providerType);
       } else {
         // Create new health record
-        await supabase.from("provider_health").insert({
+        await db.from("provider_health").insert({
           provider_name: providerName,
           provider_type: providerType,
           status: success ? "active" : "degraded",
@@ -376,7 +378,7 @@ class SportsFeedManager {
    */
   async getProviderHealth(): Promise<ProviderHealth[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("provider_health")
         .select("*")
         .order("is_primary", { ascending: false });

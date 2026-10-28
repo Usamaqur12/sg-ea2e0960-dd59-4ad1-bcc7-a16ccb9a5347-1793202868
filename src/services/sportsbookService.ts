@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SportsbookEvent, SportsbookMarket, SportsbookOutcome } from "@/types/sportsbook";
+import type { Event, Market, Selection } from "@/types/sportsbook";
+
+const db = supabase;
 
 type RawOutcome = {
   id: string;

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { supabase } from "@/integrations/supabase/client";
+
+const db = supabase;
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Card } from "@/components/ui/card";
@@ -53,7 +55,7 @@ export default function Results() {
   useEffect(() => {
     void checkAuth();
     void loadSportsAndLeagues();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         void loadBalance(session.user.id);
@@ -71,7 +73,7 @@ export default function Results() {
   }, [timePeriod, leaderboardMetric]);
 
   async function checkAuth() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     setUser(session?.user ?? null);
     if (session?.user) {
       await loadBalance(session.user.id);
@@ -79,7 +81,7 @@ export default function Results() {
   }
 
   async function loadBalance(userId: string) {
-    const { data } = await supabase
+    const { data } = await db
       .from("wallet_accounts")
       .select("balance")
       .eq("user_id", userId)
@@ -89,8 +91,8 @@ export default function Results() {
 
   async function loadSportsAndLeagues() {
     const [sportsResult, leaguesResult] = await Promise.all([
-      supabase.from("sports").select("name").order("name"),
-      supabase.from("leagues").select("name").order("name"),
+      db.from("sports").select("name").order("name"),
+      db.from("leagues").select("name").order("name"),
     ]);
 
     if (sportsResult.data) setSports(sportsResult.data);
@@ -100,7 +102,7 @@ export default function Results() {
   async function loadResults() {
     setLoading(true);
     try {
-      let query = supabase
+      let query = db
         .from("events")
         .select(`
           id,
@@ -118,7 +120,7 @@ export default function Results() {
         .limit(50);
 
       if (selectedSport !== "all") {
-        const { data: sportData } = await supabase
+        const { data: sportData } = await db
           .from("sports")
           .select("id")
           .eq("name", selectedSport)
@@ -127,7 +129,7 @@ export default function Results() {
       }
 
       if (selectedLeague !== "all") {
-        const { data: leagueData } = await supabase
+        const { data: leagueData } = await db
           .from("leagues")
           .select("id")
           .eq("name", selectedLeague)
@@ -174,7 +176,7 @@ export default function Results() {
           break;
       }
 
-      const { data: betsData } = await supabase
+      const { data: betsData } = await db
         .from("bets")
         .select("user_id, stake, status, payout, settled_at")
         .gte("created_at", startDate.toISOString())
@@ -205,7 +207,7 @@ export default function Results() {
 
       // Get profiles for usernames
       const userIds = Array.from(userStats.keys());
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("id, username")
         .in("id", userIds);

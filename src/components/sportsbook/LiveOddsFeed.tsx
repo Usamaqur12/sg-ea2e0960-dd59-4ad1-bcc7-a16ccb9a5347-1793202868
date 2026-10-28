@@ -1,3 +1,6 @@
+import { supabase } from "@/integrations/supabase/client";
+
+const db = supabase;
 import { useLiveOdds } from "@/services/liveOddsService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

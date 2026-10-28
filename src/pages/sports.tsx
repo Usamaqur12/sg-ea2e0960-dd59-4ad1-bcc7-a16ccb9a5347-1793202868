@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { AlertTriangle, Receipt, RefreshCw, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+const db = supabase;
 import { Header } from "@/components/layout/Header";
 import { SportsNav } from "@/components/layout/SportsNav";
 import { BetSlip } from "@/components/layout/BetSlip";
@@ -43,7 +45,7 @@ export default function Sports() {
   const [sort, setSort] = useState<SportsbookSort>("soonest");
 
   const loadProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
+    const { data } = await db
       .from("wallet_accounts")
       .select("balance")
       .eq("user_id", userId)
@@ -68,7 +70,7 @@ export default function Sports() {
   useEffect(() => {
     void loadEvents();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    db.auth.getSession().then(({ data: { session } }) => {
       const nextUser = session?.user
         ? { id: session.user.id, email: session.user.email }
         : null;
@@ -79,7 +81,7 @@ export default function Sports() {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((_event, session) => {
       const nextUser = session?.user
         ? { id: session.user.id, email: session.user.email }
         : null;
