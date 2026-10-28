@@ -226,12 +226,9 @@ export function WithdrawalModal({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ArrowUpRight className="h-5 w-5 text-warning" />
-            Withdraw Funds
-          </DialogTitle>
+          <DialogTitle>Withdraw Funds</DialogTitle>
           <DialogDescription>
-            Request a withdrawal to your saved payment destination
+            Request a withdrawal from your account.
           </DialogDescription>
         </DialogHeader>
 

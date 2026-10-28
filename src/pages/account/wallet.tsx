@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
-  ArrowLeft, Wallet, ArrowDownRight, ArrowUpRight, ShieldCheck, Banknote, Gift, LockKeyhole, Bitcoin, Copy, CreditCard, Trash2
+  ArrowLeft, Wallet, ArrowDownRight, ArrowUpRight, ShieldCheck, Banknote, Gift, LockKeyhole, Bitcoin, Copy, CreditCard, Trash2, AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
 

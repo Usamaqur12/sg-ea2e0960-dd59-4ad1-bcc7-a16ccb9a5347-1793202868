@@ -193,7 +193,7 @@ export function DepositModal({ open, onClose, kycStatus, onDepositComplete }: De
         <DialogHeader>
           <DialogTitle>Deposit Funds</DialogTitle>
           <DialogDescription>
-            Add funds to your account using crypto or other payment methods
+            Add funds to your account securely.
           </DialogDescription>
         </DialogHeader>
 
