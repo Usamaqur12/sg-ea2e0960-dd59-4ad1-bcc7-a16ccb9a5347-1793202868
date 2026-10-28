@@ -1,351 +1,294 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
-import { getExposureDashboard } from "@/services/tradingService";
-import { getHighRiskUsers } from "@/services/riskService";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  AlertTriangle, TrendingUp, DollarSign, Ban, Users, Activity, Eye, RefreshCw
-} from "lucide-react";
-import { canAccessAdminArea } from "@/lib/adminRoles";
+import { AlertTriangle, TrendingUp, DollarSign, Users, Clock, Shield } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface RiskAlert {
+  id: string;
+  user_id: string;
+  user_email: string;
+  type: "high_stake" | "suspicious_pattern" | "rapid_betting" | "unusual_odds";
+  severity: "low" | "medium" | "high" | "critical";
+  description: string;
+  bet_id: string | null;
+  amount: number | null;
+  created_at: string;
+  reviewed: boolean;
+}
 
 export default function AdminRisk() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { toast } = useToast();
+  const [alerts, setAlerts] = useState<RiskAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dashboard, setDashboard] = useState<any>(null);
-  const [highRiskUsers, setHighRiskUsers] = useState<any[]>([]);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [filter, setFilter] = useState<"all" | "unreviewed">("unreviewed");
 
   useEffect(() => {
-    checkAdmin();
-  }, []);
+    void loadAlerts();
+  }, [filter]);
 
-  useEffect(() => {
-    if (user && autoRefresh) {
-      const interval = setInterval(() => {
-        loadDashboard();
-      }, 10000); // Refresh every 10 seconds
+  async function loadAlerts() {
+    try {
+      // Get high-risk bets
+      const { data: bets } = await supabase
+        .from("bets")
+        .select("id, user_id, stake, total_odds, created_at")
+        .gte("stake", 500) // High stake threshold
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      return () => clearInterval(interval);
+      if (bets) {
+        // Get user emails
+        const userIds = [...new Set(bets.map(b => b.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email")
+          .in("id", userIds);
+
+        const emailMap = new Map(profiles?.map(p => [p.id, p.email]) || []);
+
+        // Create risk alerts from high-stake bets
+        const riskAlerts: RiskAlert[] = bets.map(bet => {
+          const stake = Number(bet.stake);
+          const odds = Number(bet.total_odds);
+          
+          let severity: "low" | "medium" | "high" | "critical" = "low";
+          let type: RiskAlert["type"] = "high_stake";
+          let description = "";
+
+          if (stake >= 5000) {
+            severity = "critical";
+            description = `Extremely high stake: $${stake.toFixed(2)}`;
+          } else if (stake >= 2000) {
+            severity = "high";
+            description = `Very high stake: $${stake.toFixed(2)}`;
+          } else if (stake >= 1000) {
+            severity = "medium";
+            description = `High stake: $${stake.toFixed(2)}`;
+          } else {
+            severity = "low";
+            description = `Elevated stake: $${stake.toFixed(2)}`;
+          }
+
+          if (odds >= 50) {
+            severity = severity === "critical" ? "critical" : "high";
+            type = "unusual_odds";
+            description += ` with very high odds (${odds.toFixed(2)})`;
+          } else if (odds >= 20) {
+            description += ` with high odds (${odds.toFixed(2)})`;
+          }
+
+          return {
+            id: `${bet.id}-risk`,
+            user_id: bet.user_id,
+            user_email: emailMap.get(bet.user_id) || "Unknown",
+            type,
+            severity,
+            description,
+            bet_id: bet.id,
+            amount: stake,
+            created_at: bet.created_at,
+            reviewed: false,
+          };
+        });
+
+        setAlerts(riskAlerts);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error loading risk alerts",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  }, [user, autoRefresh]);
-
-  async function checkAdmin() {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      router.push("/auth/login");
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || !canAccessAdminArea(profile.admin_role, "risk")) {
-      router.push("/");
-      return;
-    }
-
-    setUser(user);
-    loadDashboard();
-    loadHighRiskUsers();
   }
 
-  async function loadDashboard() {
-    const result = await getExposureDashboard();
-    if (result.success) {
-      setDashboard(result.dashboard);
-    }
-    setLoading(false);
-  }
-
-  async function loadHighRiskUsers() {
-    const result = await getHighRiskUsers();
-    if (result.success) {
-      setHighRiskUsers(result.users || []);
-    }
-  }
-
-  const getRiskBadge = (level: string) => {
-    switch (level) {
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
       case "critical":
-        return <Badge className="bg-danger text-danger-foreground">Critical</Badge>;
+        return "bg-red-500/10 text-red-500 border-red-500/30";
       case "high":
-        return <Badge className="bg-warning text-warning-foreground">High</Badge>;
+        return "bg-orange-500/10 text-orange-500 border-orange-500/30";
       case "medium":
-        return <Badge className="bg-primary/20 text-primary">Medium</Badge>;
+        return "bg-yellow-500/10 text-yellow-500 border-yellow-500/30";
       default:
-        return <Badge variant="outline">Low</Badge>;
+        return "bg-blue-500/10 text-blue-500 border-blue-500/30";
     }
   };
 
+  const getSeverityIcon = (severity: string) => {
+    return <AlertTriangle className="h-4 w-4" />;
+  };
+
+  const filtered = filter === "unreviewed" 
+    ? alerts.filter(a => !a.reviewed)
+    : alerts;
+
+  const criticalAlerts = alerts.filter(a => a.severity === "critical");
+  const highAlerts = alerts.filter(a => a.severity === "high");
+  const unreviewedCount = alerts.filter(a => !a.reviewed).length;
+
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">Risk Management Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              Real-time exposure and liability monitoring
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                loadDashboard();
-                loadHighRiskUsers();
-              }}
-              className="gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-            
-            <Button
-              variant={autoRefresh ? "default" : "outline"}
-              size="sm"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className="gap-2"
-            >
-              <Activity className="h-4 w-4" />
-              {autoRefresh ? "Auto-Refresh ON" : "Auto-Refresh OFF"}
-            </Button>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Risk Management</h1>
+          <p className="text-sm text-muted-foreground">Monitor high-risk betting activity and suspicious patterns</p>
         </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 rounded-md animate-pulse bg-surface" />
-            ))}
-          </div>
-        ) : (
-          <>
-            {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <Card className="surface">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <DollarSign className="h-4 w-4" />
-                    Total Turnover
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono">
-                    ${dashboard?.totalTurnover?.toFixed(2) || "0.00"}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    All pending bet stakes
-                  </p>
-                </CardContent>
-              </Card>
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="surface border-danger/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center">
+                  <AlertTriangle className="h-5 w-5 text-danger" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{criticalAlerts.length}</div>
+                  <div className="text-xs text-muted-foreground">Critical</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-              <Card className="surface border-warning/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <AlertTriangle className="h-4 w-4" />
-                    Open Liability
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono text-warning">
-                    ${dashboard?.totalLiability?.toFixed(2) || "0.00"}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Total exposure on pending bets
-                  </p>
-                </CardContent>
-              </Card>
+          <Card className="surface border-warning/30">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{highAlerts.length}</div>
+                  <div className="text-xs text-muted-foreground">High Risk</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-              <Card className="surface border-danger/30">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <TrendingUp className="h-4 w-4" />
-                    Max Potential Payout
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold font-mono text-danger">
-                    ${dashboard?.maxPotentialPayout?.toFixed(2) || "0.00"}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Highest single bet exposure
-                  </p>
-                </CardContent>
-              </Card>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{unreviewedCount}</div>
+                  <div className="text-xs text-muted-foreground">Unreviewed</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-              <Card className="surface">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground">
-                    <Ban className="h-4 w-4" />
-                    Suspended Markets
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {dashboard?.suspendedMarketsCount || 0}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Currently suspended
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{alerts.length}</div>
+                  <div className="text-xs text-muted-foreground">Total Alerts</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-            {/* High Risk Events */}
-            <Card className="surface mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                  High Risk Events
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {dashboard?.highRiskEvents?.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No high-risk events detected
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {dashboard?.highRiskEvents?.map((event: any) => (
-                      <div
-                        key={event.id}
-                        className="p-4 rounded-md border border-border hover:border-warning/50 transition-smooth"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">
-                                {event.events?.home_team} vs {event.events?.away_team}
-                              </span>
-                              {getRiskBadge(event.risk_level)}
-                            </div>
-                            
-                            <div className="text-sm text-muted-foreground mb-2">
-                              {event.events?.leagues?.name || "Unassigned league"}
-                            </div>
+        {/* Filter Buttons */}
+        <div className="flex gap-2">
+          <Button
+            variant={filter === "unreviewed" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("unreviewed")}
+          >
+            Unreviewed ({unreviewedCount})
+          </Button>
+          <Button
+            variant={filter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilter("all")}
+          >
+            All Alerts ({alerts.length})
+          </Button>
+        </div>
 
-                            <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Total Liability:</span>
-                                <span className="font-mono font-semibold ml-2">
-                                  ${event.total_liability?.toFixed(2)}
-                                </span>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground">Total Bets:</span>
-                                <span className="font-semibold ml-2">{event.bet_count}</span>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground">Max Single:</span>
-                                <span className="font-mono font-semibold ml-2">
-                                  ${event.max_potential_payout?.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <Button variant="outline" size="sm" className="gap-1 flex-shrink-0" onClick={() => void router.push(`/admin/trading?event=${encodeURIComponent(event.event_id)}`)}>
-                            <Eye className="h-3.5 w-3.5" />
-                            View
-                          </Button>
+        {/* Alerts List */}
+        <Card className="surface">
+          <CardHeader>
+            <CardTitle>Risk Alerts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-8">
+                <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="font-medium">No risk alerts</p>
+                <p className="text-sm text-muted-foreground mt-1">All betting activity is within normal parameters</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filtered.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border ${
+                      alert.severity === "critical" ? "border-danger/30 bg-danger/5" :
+                      alert.severity === "high" ? "border-warning/30 bg-warning/5" :
+                      "border-border"
+                    } gap-4`}
+                  >
+                    <div className="flex items-start gap-4 flex-1">
+                      <div className={`w-10 h-10 rounded-full ${
+                        alert.severity === "critical" ? "bg-danger/10" :
+                        alert.severity === "high" ? "bg-warning/10" :
+                        "bg-primary/10"
+                      } flex items-center justify-center flex-shrink-0`}>
+                        {getSeverityIcon(alert.severity)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge className={getSeverityColor(alert.severity)}>
+                            {alert.severity.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline" className="capitalize">
+                            {alert.type.replace("_", " ")}
+                          </Badge>
+                        </div>
+                        <div className="text-sm font-medium mb-1">{alert.description}</div>
+                        <div className="text-xs text-muted-foreground space-y-0.5">
+                          <div>User: {alert.user_email}</div>
+                          <div>Time: {new Date(alert.created_at).toLocaleString()}</div>
+                          {alert.bet_id && <div>Bet ID: {alert.bet_id}</div>}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* High Risk Users */}
-            <Card className="surface">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Users className="h-5 w-5 text-warning" />
-                  High Risk Users
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {highRiskUsers.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No high-risk users detected
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {highRiskUsers.map((user) => (
-                      <div
-                        key={user.user_id}
-                        className="p-4 rounded-md border border-border hover:border-primary/30 transition-smooth"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-semibold">{user.profiles?.email || "Unknown User"}</span>
-                              {getRiskBadge(user.risk_level)}
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">Total Bets:</span>
-                                <span className="font-semibold ml-2">{user.total_bets}</span>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground">Win Rate:</span>
-                                <span className="font-semibold ml-2">{user.win_rate?.toFixed(1)}%</span>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground">Avg Stake:</span>
-                                <span className="font-mono font-semibold ml-2">
-                                  ${user.avg_stake?.toFixed(2)}
-                                </span>
-                              </div>
-                              
-                              <div>
-                                <span className="text-muted-foreground">Total Won:</span>
-                                <span className="font-mono font-semibold ml-2 text-success">
-                                  ${user.total_won?.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-
-                            {user.flags && user.flags.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {user.flags.map((flag: string, idx: number) => (
-                                  <Badge key={idx} variant="outline" className="text-xs">
-                                    {flag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          <Button variant="outline" size="sm" className="gap-1 flex-shrink-0" onClick={() => void router.push(`/admin/users?user=${encodeURIComponent(user.user_id)}`)}>
-                            <Eye className="h-3.5 w-3.5" />
-                            Review
-                          </Button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {alert.amount && (
+                        <div className="text-right">
+                          <div className="text-lg font-bold font-mono">${alert.amount.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">Stake</div>
                         </div>
-                      </div>
-                    ))}
+                      )}
+                      <Button size="sm" variant="outline">
+                        Investigate
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
-        )}
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );
