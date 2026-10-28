@@ -292,7 +292,7 @@ function BetCard({ bet, userId, onChanged }: { bet: DisplayBet; userId: string; 
               {bet.id.slice(0, 12)} · {new Date(bet.createdAt).toLocaleString()}
             </p>
           </div>
-          <Status status={bet.status} />
+          <BetStatusBadge status={bet.status} />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -474,6 +474,49 @@ function Status({ status }: { status: string }) {
   return (
     <Badge variant="secondary" className="capitalize">
       {status}
+    </Badge>
+  );
+}
+
+function BetStatusBadge({ status }: { status: string }) {
+  const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string; className?: string }> = {
+    pending: { 
+      variant: "secondary", 
+      label: "Pending",
+      className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+    },
+    won: { 
+      variant: "default", 
+      label: "Won",
+      className: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+    },
+    lost: { 
+      variant: "destructive", 
+      label: "Lost",
+      className: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+    },
+    void: { 
+      variant: "outline", 
+      label: "Void",
+      className: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+    },
+    cashout: { 
+      variant: "default", 
+      label: "Cashed Out",
+      className: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+    },
+    cancelled: { 
+      variant: "outline", 
+      label: "Cancelled",
+      className: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+    },
+  };
+
+  const config = configs[status] || { variant: "outline", label: status, className: "" };
+
+  return (
+    <Badge variant={config.variant} className={config.className}>
+      {config.label}
     </Badge>
   );
 }
