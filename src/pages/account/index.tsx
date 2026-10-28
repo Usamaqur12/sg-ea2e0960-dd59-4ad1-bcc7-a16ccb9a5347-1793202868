@@ -17,7 +17,7 @@ import {
   X, AlertTriangle, Info, CheckCircle, Megaphone
 } from "lucide-react";
 import Link from "next/link";
-import { SEO } from "@/components/seo";
+import { SEO } from "@/components/SEO";
 
 interface Announcement {
   id: string;
