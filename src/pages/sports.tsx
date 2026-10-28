@@ -38,6 +38,7 @@ export default function Sports() {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [selectedSport, setSelectedSport] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<SportsbookEvent | null>(null);
   const [isMobileBetSlipOpen, setIsMobileBetSlipOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -56,8 +57,7 @@ export default function Sports() {
   async function loadEvents() {
     try {
       setEventsLoading(true);
-      const sportSlug = sports.find(s => s.id === activeSport)?.slug;
-      const eventsData = await fetchUpcomingEvents(sportSlug || undefined);
+      const eventsData = await fetchUpcomingEvents(selectedSport || undefined);
       if (!eventsData) {
         console.error("Failed to load events");
         return;

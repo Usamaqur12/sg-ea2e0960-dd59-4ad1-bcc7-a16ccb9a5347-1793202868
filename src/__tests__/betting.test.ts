@@ -79,8 +79,14 @@ describe("Betting Core Functions", () => {
     });
 
     test("should prevent invalid status transitions", () => {
+      const validTransitions: Record<string, string[]> = {
+        pending: ["won", "lost", "void"],
+        won: [],
+        lost: [],
+      };
       const currentStatus = "won";
-      const canTransition = currentStatus === "pending";
+      const nextStatus = "pending";
+      const canTransition = validTransitions[currentStatus]?.includes(nextStatus) ?? false;
       expect(canTransition).toBe(false);
     });
   });
@@ -164,8 +170,9 @@ describe("Betting Core Functions", () => {
     });
 
     test("should return zero payout for lost bets", () => {
-      const status = "lost";
-      const payout = status === "won" ? 100 : 0;
+      const betStatus = "lost";
+      const winAmount = 100;
+      const payout = betStatus === "won" ? winAmount : 0;
       expect(payout).toBe(0);
     });
 
@@ -187,20 +194,23 @@ describe("Betting Core Functions", () => {
 
   describe("Time Validation", () => {
     test("should prevent bets on finished events", () => {
+      const validStatuses = ["upcoming", "live"];
       const eventStatus = "finished";
-      const canBet = eventStatus === "upcoming" || eventStatus === "live";
+      const canBet = validStatuses.includes(eventStatus);
       expect(canBet).toBe(false);
     });
 
     test("should allow bets on upcoming events", () => {
+      const validStatuses = ["upcoming", "live"];
       const eventStatus = "upcoming";
-      const canBet = eventStatus === "upcoming" || eventStatus === "live";
+      const canBet = validStatuses.includes(eventStatus);
       expect(canBet).toBe(true);
     });
 
     test("should allow bets on live events", () => {
+      const validStatuses = ["upcoming", "live"];
       const eventStatus = "live";
-      const canBet = eventStatus === "upcoming" || eventStatus === "live";
+      const canBet = validStatuses.includes(eventStatus);
       expect(canBet).toBe(true);
     });
 
