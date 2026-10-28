@@ -170,7 +170,7 @@ describe("Betting Core Functions", () => {
     });
 
     test("should return zero payout for lost bets", () => {
-      const betStatus = "lost";
+      const betStatus: string = "lost";
       const winAmount = 100;
       const payout = betStatus === "won" ? winAmount : 0;
       expect(payout).toBe(0);
