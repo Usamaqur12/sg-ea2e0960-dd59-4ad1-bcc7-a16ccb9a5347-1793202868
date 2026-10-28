@@ -319,7 +319,7 @@ export default function WalletPage() {
                     ${(walletBalances?.available ?? walletBalances?.cash ?? 0).toFixed(2)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
-                    Live wallet funds available to bet
+                    Funds available to bet
                   </div>
                 </div>
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">

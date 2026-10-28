@@ -87,3 +87,8 @@ ON CONFLICT (id) DO UPDATE SET
   valid_until=EXCLUDED.valid_until,is_active=TRUE,promo_code=EXCLUDED.promo_code,
   min_odds=EXCLUDED.min_odds,expires_after_days=EXCLUDED.expires_after_days,
   updated_at=NOW();
+
+-- Demo wallet seed - starting with $0 balance
+INSERT INTO wallet_accounts (user_id, balance, currency) 
+VALUES ('00000000-0000-0000-0000-000000000001', 0.00, 'USD')
+ON CONFLICT (user_id) DO NOTHING;

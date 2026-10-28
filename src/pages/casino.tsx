@@ -404,7 +404,7 @@ export default function CasinoPage() {
         <Card className="mt-8 border-muted">
           <CardContent className="p-6 text-center">
             <p className="text-sm text-muted-foreground">
-              {casinoEnabled ? "Provider games launch only for approved, unrestricted accounts. Transactions are signed, idempotent and recorded in the wallet ledger." : "Casino games are currently unavailable. Please check back later."}
+              {casinoEnabled ? "Provider games launch only for approved accounts. Transactions are recorded in the wallet ledger." : "Casino games are currently unavailable. Please check back later."}
             </p>
           </CardContent>
         </Card>
