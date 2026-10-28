@@ -5,10 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, CheckCircle, XCircle, AlertCircle, DollarSign, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { Clock, CheckCircle, XCircle, DollarSign, ArrowUpCircle, ArrowDownCircle, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 
 interface Transaction {
   id: string;
@@ -24,10 +23,6 @@ export default function AdminTransactions() {
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
-  const [action, setAction] = useState<"approve" | "reject" | null>(null);
-  const [notes, setNotes] = useState("");
-  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     void loadTransactions();
@@ -69,136 +64,25 @@ export default function AdminTransactions() {
     }
   }
 
-  async function processTransaction(approve: boolean) {
-    if (!selectedTx) return;
-
-    setProcessing(true);
-    try {
-      if (approve) {
-        // Approve: update status and credit wallet
-        const { error: txError } = await supabase
-          .from("wallet_transactions")
-          .update({
-            status: "completed",
-          })
-          .eq("id", selectedTx.id);
-
-        if (txError) throw txError;
-
-        // Update wallet balance for deposits
-        if (selectedTx.type === "deposit") {
-          const { data: wallet } = await supabase
-            .from("wallet_accounts")
-            .select("balance")
-            .eq("user_id", selectedTx.user_id)
-            .single();
-
-          if (wallet) {
-            await supabase
-              .from("wallet_accounts")
-              .update({ balance: Number(wallet.balance) + selectedTx.amount })
-              .eq("user_id", selectedTx.user_id);
-          }
-        }
-
-        // Send notification
-        await (supabase as any).from("user_notifications").insert({
-          user_id: selectedTx.user_id,
-          type: "transaction",
-          title: "Transaction Approved",
-          message: `Your ${selectedTx.type} of $${selectedTx.amount.toFixed(2)} has been approved`,
-        });
-
-        toast({
-          title: "Transaction approved",
-          description: "Funds have been credited to the user's wallet",
-        });
-      } else {
-        // Reject: update status only
-        const { error } = await supabase
-          .from("wallet_transactions")
-          .update({
-            status: "failed",
-          })
-          .eq("id", selectedTx.id);
-
-        if (error) throw error;
-
-        // Send notification
-        await (supabase as any).from("user_notifications").insert({
-          user_id: selectedTx.user_id,
-          type: "transaction",
-          title: "Transaction Rejected",
-          message: `Your ${selectedTx.type} of $${selectedTx.amount.toFixed(2)} was rejected. ${notes}`,
-        });
-
-        toast({
-          title: "Transaction rejected",
-          description: "User has been notified",
-        });
-      }
-
-      await loadTransactions();
-      setSelectedTx(null);
-      setAction(null);
-      setNotes("");
-    } catch (error: any) {
-      toast({
-        title: "Error processing transaction",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setProcessing(false);
-    }
-  }
-
   const pending = transactions.filter(t => t.status === "pending");
   const completed = transactions.filter(t => t.status === "completed");
   const failed = transactions.filter(t => t.status === "failed");
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Badge variant="outline" className="border-warning text-warning">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
-      case "completed":
-        return (
-          <Badge className="bg-success/10 text-success border-success/30">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
-      case "failed":
-        return (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getTypeIcon = (type: string) => {
-    return type === "deposit" ? (
-      <ArrowDownCircle className="h-4 w-4 text-success" />
-    ) : (
-      <ArrowUpCircle className="h-4 w-4 text-warning" />
-    );
-  };
-
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Transaction Management</h1>
-          <p className="text-sm text-muted-foreground">Review and approve pending deposits and withdrawals</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Transaction Ledger</h1>
+            <p className="text-sm text-muted-foreground">Immutable wallet transaction history</p>
+          </div>
+          <Button asChild>
+            <Link href="/admin/payments"><ShieldCheck className="mr-2 h-4 w-4" />Open payment review queues</Link>
+          </Button>
+        </div>
+
+        <div className="rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm text-muted-foreground">
+          Deposits and withdrawals cannot be approved by editing this ledger. Use the Payments review queues, where validation, maker-checker approval, wallet posting, notifications, and audit records run atomically.
         </div>
 
         {/* Summary Stats */}
@@ -290,16 +174,7 @@ export default function AdminTransactions() {
                     No pending transactions
                   </p>
                 ) : (
-                  pending.map((tx) => (
-                    <TransactionCard
-                      key={tx.id}
-                      transaction={tx}
-                      onAction={(action) => {
-                        setSelectedTx(tx);
-                        setAction(action);
-                      }}
-                    />
-                  ))
+                  pending.map((tx) => <TransactionCard key={tx.id} transaction={tx} />)
                 )}
               </TabsContent>
 
@@ -331,63 +206,14 @@ export default function AdminTransactions() {
         </Card>
       </div>
 
-      {/* Approval/Rejection Dialog */}
-      <Dialog open={action !== null} onOpenChange={() => { setAction(null); setSelectedTx(null); setNotes(""); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {action === "approve" ? "Approve Transaction" : "Reject Transaction"}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedTx && (
-                <div className="space-y-2 mt-4 text-sm">
-                  <div><strong>User:</strong> {selectedTx.user_email}</div>
-                  <div><strong>Type:</strong> {selectedTx.type}</div>
-                  <div><strong>Amount:</strong> ${selectedTx.amount.toFixed(2)}</div>
-                </div>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Notes (optional)</label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={action === "reject" ? "Reason for rejection..." : "Admin notes..."}
-                rows={3}
-                className="mt-2"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => { setAction(null); setSelectedTx(null); setNotes(""); }}
-              disabled={processing}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant={action === "approve" ? "default" : "destructive"}
-              onClick={() => processTransaction(action === "approve")}
-              disabled={processing}
-            >
-              {processing ? "Processing..." : action === "approve" ? "Approve" : "Reject"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AdminLayout>
   );
 }
 
 function TransactionCard({
   transaction,
-  onAction,
 }: {
   transaction: Transaction;
-  onAction?: (action: "approve" | "reject") => void;
 }) {
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -450,25 +276,6 @@ function TransactionCard({
             ${transaction.amount.toFixed(2)}
           </div>
         </div>
-        {transaction.status === "pending" && onAction && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-success border-success/30"
-              onClick={() => onAction("approve")}
-            >
-              Approve
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => onAction("reject")}
-            >
-              Reject
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   );

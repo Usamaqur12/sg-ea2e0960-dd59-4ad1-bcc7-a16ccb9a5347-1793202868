@@ -32,10 +32,6 @@ const marketTypes = [
   ["total_goals", "Total Goals"],
 ] as const;
 
-function slugify(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 function defaultStartTime() {
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   return new Date(tomorrow.getTime() - tomorrow.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
@@ -88,6 +84,18 @@ export default function SportsCatalogueManager() {
     await loadData();
   }
 
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}`, ...(init?.headers || {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Sports catalogue request failed");
+    return body;
+  }
+
   async function loadData() {
     setLoading(true);
     const [sportResult, leagueResult, eventResult, marketResult, oddsResult] = await Promise.all([
@@ -107,10 +115,10 @@ export default function SportsCatalogueManager() {
     setLoading(false);
   }
 
-  async function completeCreate(label: string, error: { message: string } | null, nextTab?: string) {
+  async function completeCreate(label: string, error: unknown, nextTab?: string) {
     setSaving(false);
     if (error) {
-      toast({ title: `${label} could not be added`, description: error.message, variant: "destructive" });
+      toast({ title: `${label} could not be added`, description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
       return;
     }
     toast({ title: `${label} added`, description: "Saved in the sportsbook catalogue." });
@@ -122,18 +130,22 @@ export default function SportsCatalogueManager() {
     const name = sportName.trim();
     if (!name) { toast({ title: "Sport name is required", variant: "destructive" }); return; }
     setSaving(true);
-    const { error } = await supabase.from("sports").insert({ name, slug: slugify(name), icon: sportIcon.trim() || "🏆", is_active: true });
-    if (!error) { setSportName(""); setSportIcon("🏆"); }
-    await completeCreate("Sport", error, "leagues");
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "sports", values: { name, icon: sportIcon.trim() || "🏆" } }) });
+      setSportName(""); setSportIcon("🏆");
+      await completeCreate("Sport", null, "leagues");
+    } catch (error) { await completeCreate("Sport", error); }
   }
 
   async function createLeague() {
     const name = leagueName.trim();
     if (!leagueSportId || !name) { toast({ title: "Select a sport and enter the league name", variant: "destructive" }); return; }
     setSaving(true);
-    const { error } = await supabase.from("leagues").insert({ sport_id: leagueSportId, name, slug: slugify(name), country: leagueCountry.trim() || null, is_active: true });
-    if (!error) { setLeagueName(""); setLeagueCountry(""); }
-    await completeCreate("League", error, "events");
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "leagues", values: { sport_id: leagueSportId, name, country: leagueCountry.trim() || null } }) });
+      setLeagueName(""); setLeagueCountry("");
+      await completeCreate("League", null, "events");
+    } catch (error) { await completeCreate("League", error); }
   }
 
   async function createEvent() {
@@ -142,18 +154,11 @@ export default function SportsCatalogueManager() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("events").insert({
-      sport_id: eventSportId,
-      league_id: eventLeagueId,
-      home_team: homeTeam.trim(),
-      away_team: awayTeam.trim(),
-      start_time: new Date(startTime).toISOString(),
-      status: "upcoming",
-      is_featured: false,
-      is_suspended: false,
-    });
-    if (!error) { setHomeTeam(""); setAwayTeam(""); setStartTime(defaultStartTime()); }
-    await completeCreate("Event", error, "markets");
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "events", values: { sport_id: eventSportId, league_id: eventLeagueId, home_team: homeTeam.trim(), away_team: awayTeam.trim(), start_time: new Date(startTime).toISOString() } }) });
+      setHomeTeam(""); setAwayTeam(""); setStartTime(defaultStartTime());
+      await completeCreate("Event", null, "markets");
+    } catch (error) { await completeCreate("Event", error); }
   }
 
   async function createMarket() {
@@ -161,9 +166,11 @@ export default function SportsCatalogueManager() {
     const line = marketLine.trim() ? Number(marketLine) : null;
     if (line !== null && !Number.isFinite(line)) { toast({ title: "Enter a valid market line", variant: "destructive" }); return; }
     setSaving(true);
-    const { error } = await supabase.from("markets").insert({ event_id: marketEventId, name: marketName.trim(), type: marketType, line, status: "active" });
-    if (!error) { setMarketName("Match Result"); setMarketType("match_result"); setMarketLine(""); }
-    await completeCreate("Market", error);
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "markets", values: { event_id: marketEventId, name: marketName.trim(), type: marketType, line } }) });
+      setMarketName("Match Result"); setMarketType("match_result"); setMarketLine("");
+      await completeCreate("Market", null);
+    } catch (error) { await completeCreate("Market", error); }
   }
 
   async function createOdds() {
@@ -173,40 +180,44 @@ export default function SportsCatalogueManager() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("odds").insert({ market_id: oddsMarketId, selection: oddsSelection.trim(), value, is_active: true });
-    if (!error) { setOddsSelection(""); setOddsValue("1.90"); }
-    await completeCreate("Odds", error);
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "odds", values: { market_id: oddsMarketId, selection: oddsSelection.trim(), value } }) });
+      setOddsSelection(""); setOddsValue("1.90");
+      await completeCreate("Odds", null);
+    } catch (error) { await completeCreate("Odds", error); }
   }
 
   async function updateRecord(table: string, id: string, changes: Record<string, unknown>, label: string) {
     setSaving(true);
-    const { error } = await (supabase as any).from(table).update(changes).eq("id", id);
-    setSaving(false);
-    if (error) {
-      toast({ title: `${label} could not be updated`, description: error.message, variant: "destructive" });
-      return;
+    try {
+      await adminFetch("/api/admin/sports-catalogue", { method: "PATCH", body: JSON.stringify({ resource: table, id, changes }) });
+      toast({ title: `${label} updated` });
+      await loadData();
+    } catch (error) {
+      toast({ title: `${label} could not be updated`, description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    toast({ title: `${label} updated` });
-    await loadData();
   }
 
   async function deleteRecord(table: string, id: string, label: string) {
     if (!window.confirm(`Delete this ${label.toLowerCase()}? Related child records may also be deleted.`)) return;
     setSaving(true);
-    const { error } = await (supabase as any).from(table).delete().eq("id", id);
-    setSaving(false);
-    if (error) {
-      toast({ title: `${label} could not be deleted`, description: error.message, variant: "destructive" });
-      return;
+    try {
+      await adminFetch(`/api/admin/sports-catalogue?resource=${encodeURIComponent(table)}&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      toast({ title: `${label} deleted` });
+      await loadData();
+    } catch (error) {
+      toast({ title: `${label} could not be deleted`, description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    toast({ title: `${label} deleted` });
-    await loadData();
   }
 
-  async function renameRecord(table: string, id: string, currentName: string, label: string, includeSlug = false) {
+  async function renameRecord(table: string, id: string, currentName: string, label: string) {
     const name = window.prompt(`Enter the new ${label.toLowerCase()} name`, currentName)?.trim();
     if (!name || name === currentName) return;
-    await updateRecord(table, id, includeSlug ? { name, slug: slugify(name) } : { name }, label);
+    await updateRecord(table, id, { name }, label);
   }
 
   async function editEvent(event: EventRecord) {
@@ -238,50 +249,20 @@ export default function SportsCatalogueManager() {
     }
 
     setSaving(true);
-    let imported = 0;
     try {
-      const sportMap = new Map(sports.map((item) => [item.name.toLowerCase(), item]));
-      const leagueMap = new Map(leagues.map((item) => [`${item.sport_id}:${item.name.toLowerCase()}`, item]));
-
-      for (const [index, row] of rows.entries()) {
+      const parsedRows = rows.map((row, index) => {
         const columns = row.split(",").map((value) => value.trim());
         if (columns.length !== 10) throw new Error(`Row ${index + 1} must contain exactly 10 comma-separated values`);
         const [sportNameValue, leagueNameValue, country, home, away, start, market, homePrice, drawPrice, awayPrice] = columns;
         const startDate = new Date(start);
-        const prices = [Number(homePrice), Number(drawPrice), Number(awayPrice)];
+        const prices: [number, number, number] = [Number(homePrice), Number(drawPrice), Number(awayPrice)];
         if (!sportNameValue || !leagueNameValue || !home || !away || !market || Number.isNaN(startDate.getTime()) || prices.some((price) => !Number.isFinite(price) || price < 1.01)) {
           throw new Error(`Row ${index + 1} contains invalid data`);
         }
-
-        let sport = sportMap.get(sportNameValue.toLowerCase());
-        if (!sport) {
-          const { data, error } = await (supabase as any).from("sports").insert({ name: sportNameValue, slug: slugify(sportNameValue), icon: "🏆", is_active: true }).select("id, name, icon, is_active").single();
-          if (error) throw error;
-          sport = data;
-          sportMap.set(sportNameValue.toLowerCase(), sport!);
-        }
-
-        const leagueKey = `${sport!.id}:${leagueNameValue.toLowerCase()}`;
-        let league = leagueMap.get(leagueKey);
-        if (!league) {
-          const { data, error } = await (supabase as any).from("leagues").insert({ sport_id: sport!.id, name: leagueNameValue, slug: slugify(leagueNameValue), country: country || null, is_active: true }).select("id, sport_id, name, country, is_active").single();
-          if (error) throw error;
-          league = data;
-          leagueMap.set(leagueKey, league!);
-        }
-
-        const { data: createdEvent, error: eventError } = await (supabase as any).from("events").insert({ sport_id: sport!.id, league_id: league!.id, home_team: home, away_team: away, start_time: startDate.toISOString(), status: "upcoming", is_featured: false, is_suspended: false }).select("id").single();
-        if (eventError) throw eventError;
-        const { data: createdMarket, error: marketError } = await (supabase as any).from("markets").insert({ event_id: createdEvent.id, name: market, type: "match_result", line: null, status: "active" }).select("id").single();
-        if (marketError) throw marketError;
-        const { error: oddsError } = await (supabase as any).from("odds").insert([
-          { market_id: createdMarket.id, selection: home, value: prices[0], is_active: true },
-          { market_id: createdMarket.id, selection: "Draw", value: prices[1], is_active: true },
-          { market_id: createdMarket.id, selection: away, value: prices[2], is_active: true },
-        ]);
-        if (oddsError) throw oddsError;
-        imported += 1;
-      }
+        return { sport: sportNameValue, league: leagueNameValue, country: country || null, home, away, start: startDate.toISOString(), market, prices };
+      });
+      const body = await adminFetch("/api/admin/sports-catalogue", { method: "POST", body: JSON.stringify({ resource: "bulk_import", rows: parsedRows }) });
+      const imported = Number(body.imported || 0);
       toast({ title: `${imported} event${imported === 1 ? "" : "s"} imported`, description: "Sports, leagues, markets and odds are now available." });
       await loadData();
     } catch (error) {
@@ -311,12 +292,12 @@ export default function SportsCatalogueManager() {
 
           <TabsContent value="sports" className="mt-4 grid gap-4 xl:grid-cols-[420px_1fr]">
             <Card><CardHeader><CardTitle>Add Sport</CardTitle><CardDescription>Example: Football, Cricket or Tennis.</CardDescription></CardHeader><CardContent className="grid gap-4"><div className="grid gap-2"><Label htmlFor="sport-name">Sport name</Label><Input id="sport-name" placeholder="Football" value={sportName} onChange={(event) => setSportName(event.target.value)} /></div><div className="grid gap-2"><Label htmlFor="sport-icon">Icon / emoji</Label><Input id="sport-icon" value={sportIcon} onChange={(event) => setSportIcon(event.target.value)} /></div><Button onClick={() => void createSport()} disabled={saving}><Plus className="mr-2 h-4 w-4" />{saving ? "Adding…" : "Add Sport"}</Button></CardContent></Card>
-            <Card><CardHeader><CardTitle>Available Sports</CardTitle></CardHeader><CardContent>{sports.length === 0 ? <Empty loading={loading} /> : <div className="grid gap-3 md:grid-cols-2">{sports.map((sport) => <div key={sport.id} className="flex items-center justify-between gap-2 rounded border border-border p-4"><div className="flex min-w-0 items-center gap-3"><span className="text-2xl">{sport.icon || "🏆"}</span><div className="min-w-0"><div className="truncate font-medium">{sport.name}</div><button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => void updateRecord("sports", sport.id, { is_active: !sport.is_active }, "Sport")}>{sport.is_active ? "Active" : "Inactive"}</button></div></div><RecordActions onEdit={() => void renameRecord("sports", sport.id, sport.name, "Sport", true)} onDelete={() => void deleteRecord("sports", sport.id, "Sport")} /></div>)}</div>}</CardContent></Card>
+            <Card><CardHeader><CardTitle>Available Sports</CardTitle></CardHeader><CardContent>{sports.length === 0 ? <Empty loading={loading} /> : <div className="grid gap-3 md:grid-cols-2">{sports.map((sport) => <div key={sport.id} className="flex items-center justify-between gap-2 rounded border border-border p-4"><div className="flex min-w-0 items-center gap-3"><span className="text-2xl">{sport.icon || "🏆"}</span><div className="min-w-0"><div className="truncate font-medium">{sport.name}</div><button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => void updateRecord("sports", sport.id, { is_active: !sport.is_active }, "Sport")}>{sport.is_active ? "Active" : "Inactive"}</button></div></div><RecordActions onEdit={() => void renameRecord("sports", sport.id, sport.name, "Sport")} onDelete={() => void deleteRecord("sports", sport.id, "Sport")} /></div>)}</div>}</CardContent></Card>
           </TabsContent>
 
           <TabsContent value="leagues" className="mt-4 grid gap-4 xl:grid-cols-[420px_1fr]">
             <Card><CardHeader><CardTitle>Add League</CardTitle><CardDescription>Choose the sport first, then create its competition.</CardDescription></CardHeader><CardContent className="grid gap-4"><div className="grid gap-2"><Label>Sport</Label><Select value={leagueSportId} onValueChange={setLeagueSportId}><SelectTrigger><SelectValue placeholder="Select sport" /></SelectTrigger><SelectContent>{sports.map((sport) => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent></Select></div><div className="grid gap-2"><Label htmlFor="league-name">League name</Label><Input id="league-name" placeholder="Premier League" value={leagueName} onChange={(event) => setLeagueName(event.target.value)} /></div><div className="grid gap-2"><Label htmlFor="league-country">Country</Label><Input id="league-country" placeholder="England" value={leagueCountry} onChange={(event) => setLeagueCountry(event.target.value)} /></div><Button onClick={() => void createLeague()} disabled={saving || !sports.length}><Plus className="mr-2 h-4 w-4" />{saving ? "Adding…" : "Add League"}</Button></CardContent></Card>
-            <Card><CardHeader><CardTitle>Leagues</CardTitle></CardHeader><CardContent>{leagues.length === 0 ? <Empty loading={loading} /> : <div className="space-y-2">{leagues.map((league) => <div key={league.id} className="flex items-center justify-between gap-2 rounded border border-border p-3"><div className="flex min-w-0 items-center gap-3"><Trophy className="h-5 w-5 shrink-0 text-gold" /><div className="min-w-0"><div className="truncate font-medium">{league.name}</div><button className="text-left text-xs text-muted-foreground hover:text-foreground" onClick={() => void updateRecord("leagues", league.id, { is_active: !league.is_active }, "League")}>{sportNames.get(league.sport_id)} · {league.country || "Global"} · {league.is_active ? "Active" : "Inactive"}</button></div></div><RecordActions onEdit={() => void renameRecord("leagues", league.id, league.name, "League", true)} onDelete={() => void deleteRecord("leagues", league.id, "League")} /></div>)}</div>}</CardContent></Card>
+            <Card><CardHeader><CardTitle>Leagues</CardTitle></CardHeader><CardContent>{leagues.length === 0 ? <Empty loading={loading} /> : <div className="space-y-2">{leagues.map((league) => <div key={league.id} className="flex items-center justify-between gap-2 rounded border border-border p-3"><div className="flex min-w-0 items-center gap-3"><Trophy className="h-5 w-5 shrink-0 text-gold" /><div className="min-w-0"><div className="truncate font-medium">{league.name}</div><button className="text-left text-xs text-muted-foreground hover:text-foreground" onClick={() => void updateRecord("leagues", league.id, { is_active: !league.is_active }, "League")}>{sportNames.get(league.sport_id)} · {league.country || "Global"} · {league.is_active ? "Active" : "Inactive"}</button></div></div><RecordActions onEdit={() => void renameRecord("leagues", league.id, league.name, "League")} onDelete={() => void deleteRecord("leagues", league.id, "League")} /></div>)}</div>}</CardContent></Card>
           </TabsContent>
 
           <TabsContent value="events" className="mt-4 grid gap-4 xl:grid-cols-[420px_1fr]">

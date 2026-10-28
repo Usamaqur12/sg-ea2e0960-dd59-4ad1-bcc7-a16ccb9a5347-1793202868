@@ -146,31 +146,72 @@ export default function Dashboard() {
   }
 
   async function loadSportStats(userId: string) {
-    // Get bet selections with sport info
+    const { data: bets } = await supabase
+      .from("bets")
+      .select("id, status, stake, payout")
+      .eq("user_id", userId);
+    if (!bets?.length) {
+      setSportStats([]);
+      return;
+    }
+
+    const betIds = bets.map((bet) => bet.id);
     const { data: selections } = await supabase
       .from("bet_selections")
-      .select("bet_id, market_id, odds_value, result")
-      .in("bet_id", 
-        (await supabase.from("bets").select("id").eq("user_id", userId)).data?.map(b => b.id) || []
-      );
-
-    if (selections) {
-      // Group by sport (simplified - in real scenario would join with events/markets)
-      const sportMap = new Map<string, { bets: number; won: number; profit: number }>();
-      
-      // For now, create sample sport stats
-      const sampleSports = ["Football", "Basketball", "Tennis", "Cricket"];
-      sampleSports.forEach(sport => {
-        sportMap.set(sport, { bets: 0, won: 0, profit: 0 });
-      });
-
-      setSportStats(
-        Array.from(sportMap.entries()).map(([sport, data]) => ({
-          sport,
-          ...data,
-        }))
-      );
+      .select("bet_id, market_id")
+      .in("bet_id", betIds);
+    const marketIds = [...new Set((selections || []).map((selection) => selection.market_id))];
+    if (!marketIds.length) {
+      setSportStats([]);
+      return;
     }
+
+    const { data: markets } = await supabase.from("markets").select("id, event_id").in("id", marketIds);
+    const eventIds = [...new Set((markets || []).map((market) => market.event_id))];
+    const { data: events } = eventIds.length
+      ? await supabase.from("events").select("id, sport_id").in("id", eventIds)
+      : { data: [] };
+    const sportIds = [...new Set((events || []).map((event) => event.sport_id))];
+    const { data: sports } = sportIds.length
+      ? await supabase.from("sports").select("id, name").in("id", sportIds)
+      : { data: [] };
+
+    const marketToEvent = new Map((markets || []).map((market) => [market.id, market.event_id]));
+    const eventToSport = new Map((events || []).map((event) => [event.id, event.sport_id]));
+    const sportNames = new Map((sports || []).map((sport) => [sport.id, sport.name]));
+    const selectionsByBet = new Map<string, string[]>();
+    (selections || []).forEach((selection) => {
+      const eventId = marketToEvent.get(selection.market_id);
+      const sportId = eventId ? eventToSport.get(eventId) : undefined;
+      const sportName = sportId ? sportNames.get(sportId) : undefined;
+      if (!sportName) return;
+      const names = selectionsByBet.get(selection.bet_id) || [];
+      if (!names.includes(sportName)) names.push(sportName);
+      selectionsByBet.set(selection.bet_id, names);
+    });
+
+    const totals = new Map<string, { bets: number; won: number; profit: number }>();
+    bets.forEach((bet) => {
+      const sportNamesForBet = selectionsByBet.get(bet.id) || [];
+      if (!sportNamesForBet.length) return;
+      const settledProfit = bet.status === "won"
+        ? Number(bet.payout || 0) - Number(bet.stake || 0)
+        : bet.status === "lost" ? -Number(bet.stake || 0) : 0;
+      const allocatedProfit = settledProfit / sportNamesForBet.length;
+      sportNamesForBet.forEach((sportName) => {
+        const current = totals.get(sportName) || { bets: 0, won: 0, profit: 0 };
+        current.bets += 1;
+        current.won += bet.status === "won" ? 1 : 0;
+        current.profit += allocatedProfit;
+        totals.set(sportName, current);
+      });
+    });
+
+    setSportStats(
+      Array.from(totals.entries())
+        .map(([sport, data]) => ({ sport, ...data }))
+        .sort((a, b) => b.bets - a.bets)
+    );
   }
 
   async function loadDocuments(userId: string) {

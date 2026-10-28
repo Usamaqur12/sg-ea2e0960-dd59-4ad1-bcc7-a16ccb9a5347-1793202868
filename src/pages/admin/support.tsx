@@ -51,6 +51,18 @@ export default function AdminSupport() {
   useEffect(() => { void initialize(); }, []);
   useEffect(() => { if (selectedId) void loadMessages(selectedId); else setMessages([]); }, [selectedId]);
 
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}`, ...(init?.headers || {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Support request failed");
+    return body;
+  }
+
   async function initialize() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { await router.push("/auth/login"); return; }
@@ -90,9 +102,13 @@ export default function AdminSupport() {
   async function advanceTicket(ticket: TicketView) {
     const nextStatus: TicketStatus = ticket.status === "open" ? "in_progress" : "resolved";
     setProcessingId(ticket.id);
-    const { error } = await supabase.from("support_tickets").update({ status: nextStatus, updated_at: new Date().toISOString() }).eq("id", ticket.id);
-    if (error) toast({ title: "Ticket update failed", description: error.message, variant: "destructive" });
-    else { setTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, status: nextStatus } : item)); toast({ title: nextStatus === "in_progress" ? "Ticket assigned to progress" : "Ticket resolved" }); }
+    try {
+      await adminFetch(`/api/admin/support/tickets/${ticket.id}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus }) });
+      setTickets((current) => current.map((item) => item.id === ticket.id ? { ...item, status: nextStatus } : item));
+      toast({ title: nextStatus === "in_progress" ? "Ticket assigned to progress" : "Ticket resolved" });
+    } catch (error) {
+      toast({ title: "Ticket update failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
     setProcessingId(null);
   }
 

@@ -32,61 +32,18 @@ export default function AdminAudit() {
 
   async function loadAuditLogs() {
     try {
-      // In a real implementation, this would be from an actual audit_logs table
-      // For now, we'll create sample logs from admin actions we can track
-      
-      // Get recent admin transactions updates
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // Create sample audit logs (in production, these would be real tracked events)
-      const sampleLogs: AuditLog[] = [
-        {
-          id: "1",
-          admin_email: "admin@primebet.com",
-          admin_role: "super_admin",
-          action: "user_suspended",
-          entity_type: "user",
-          entity_id: "user-123",
-          details: "Suspended user due to suspicious activity",
-          timestamp: new Date(Date.now() - 3600000).toISOString(),
-        },
-        {
-          id: "2",
-          admin_email: "finance@primebet.com",
-          admin_role: "finance",
-          action: "transaction_approved",
-          entity_type: "transaction",
-          entity_id: "tx-456",
-          details: "Approved withdrawal of $5,000",
-          timestamp: new Date(Date.now() - 7200000).toISOString(),
-        },
-        {
-          id: "3",
-          admin_email: "admin@primebet.com",
-          admin_role: "admin",
-          action: "admin_created",
-          entity_type: "admin",
-          entity_id: "admin-789",
-          details: "Created new support admin",
-          timestamp: new Date(Date.now() - 86400000).toISOString(),
-        },
-        {
-          id: "4",
-          admin_email: "kyc@primebet.com",
-          admin_role: "kyc",
-          action: "kyc_approved",
-          entity_type: "kyc_document",
-          entity_id: "doc-321",
-          details: "Approved ID verification document",
-          timestamp: new Date(Date.now() - 172800000).toISOString(),
-        },
-      ];
-
-      setLogs(sampleLogs);
-    } catch (error: any) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Admin session expired");
+      const response = await fetch("/api/admin/audit?limit=300", {
+        headers: { authorization: `Bearer ${session.access_token}` },
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || "Audit logs could not be loaded");
+      setLogs(body.logs || []);
+    } catch (error) {
       toast({
         title: "Error loading audit logs",
-        description: error.message,
+        description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
     } finally {

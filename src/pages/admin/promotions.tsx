@@ -45,11 +45,27 @@ export default function AdminPromotions() {
 
   useEffect(() => { void initialize(); }, [initialize]);
 
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}`, ...(init?.headers || {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Promotion request failed");
+    return body;
+  }
+
   async function togglePromotion(promo: PromotionView) {
     setProcessingId(promo.id);
-    const { error } = await supabase.from("promotions").update({ is_active: !promo.active }).eq("id", promo.id);
-    if (error) toast({ title: "Update failed", description: error.message, variant: "destructive" });
-    else { setPromotions((current) => current.map((item) => item.id === promo.id ? { ...item, active: !item.active } : item)); toast({ title: promo.active ? "Promotion disabled" : "Promotion activated" }); }
+    try {
+      await adminFetch("/api/admin/promotions", { method: "PATCH", body: JSON.stringify({ id: promo.id, is_active: !promo.active }) });
+      setPromotions((current) => current.map((item) => item.id === promo.id ? { ...item, active: !item.active } : item));
+      toast({ title: promo.active ? "Promotion disabled" : "Promotion activated" });
+    } catch (error) {
+      toast({ title: "Update failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
     setProcessingId(null);
   }
 
@@ -61,12 +77,16 @@ export default function AdminPromotions() {
   async function savePromotion() {
     if (!form.title.trim() || Number(form.bonusAmount) <= 0) { toast({ title: "Title and positive bonus amount are required", variant: "destructive" }); return; }
     setProcessingId(editingId ?? "new");
-    const values = { title: form.title.trim(), description: form.description.trim() || null, type: form.type, bonus_amount: Number(form.bonusAmount), max_bonus: Number(form.bonusAmount), wagering_requirement: Number(form.wagering), promo_code: form.promoCode.trim() || null, min_odds: Number(form.minOdds), expires_after_days: Number(form.expiryDays), is_active: true };
-    const result = editingId
-      ? await supabase.from("promotions").update(values).eq("id", editingId)
-      : await supabase.from("promotions").insert({ ...values, valid_from: new Date().toISOString(), valid_until: new Date(Date.now() + 90 * 86400000).toISOString() });
-    if (result.error) toast({ title: "Promotion save failed", description: result.error.message, variant: "destructive" });
-    else { toast({ title: editingId ? "Promotion updated" : "Promotion created" }); setEditingId(null); setForm(emptyForm); await loadPromotions(); }
+    const values = { title: form.title.trim(), description: form.description.trim() || null, type: form.type, bonus_amount: Number(form.bonusAmount), wagering_requirement: Number(form.wagering), promo_code: form.promoCode.trim() || null, min_odds: Number(form.minOdds), expires_after_days: Number(form.expiryDays), is_active: true };
+    try {
+      await adminFetch("/api/admin/promotions", { method: editingId ? "PATCH" : "POST", body: JSON.stringify(editingId ? { id: editingId, ...values } : values) });
+      toast({ title: editingId ? "Promotion updated" : "Promotion created" });
+      setEditingId(null);
+      setForm(emptyForm);
+      await loadPromotions();
+    } catch (error) {
+      toast({ title: "Promotion save failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
     setProcessingId(null);
   }
 

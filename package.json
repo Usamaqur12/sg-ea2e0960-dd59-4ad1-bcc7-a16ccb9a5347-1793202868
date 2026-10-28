@@ -20,6 +20,7 @@
     "test:load": "node scripts/load-smoke.mjs",
     "test:readiness": "node scripts/readiness-smoke.mjs",
     "test:ui-actions": "node scripts/ui-action-audit.mjs",
+    "test:admin-boundaries": "node scripts/admin-mutation-audit.mjs",
     "check": "npm run typecheck && npm run lint && npm run build"
   },
   "dependencies": {

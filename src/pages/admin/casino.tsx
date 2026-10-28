@@ -18,40 +18,56 @@ export default function AdminCasino() {
   const [providerForm, setProviderForm] = useState({ code: "", name: "" });
   const [gameForm, setGameForm] = useState({ provider_id: "", external_game_id: "", name: "", category: "slots" });
 
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}`, ...(init?.headers || {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Casino catalogue request failed");
+    return body;
+  }
+
   async function load() {
-    const [{ data: providerRows }, { data: gameRows }] = await Promise.all([
-      (supabase as any).from("casino_providers").select("*").order("name"),
-      (supabase as any).from("casino_games").select("*").order("name"),
-    ]);
-    setProviders(providerRows || []); setGames(gameRows || []);
+    try {
+      const body = await adminFetch("/api/admin/casino-catalogue");
+      setProviders(body.providers || []); setGames(body.games || []);
+    } catch (error) {
+      toast({ title: "Catalogue could not be loaded", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    }
   }
   useEffect(() => { void load(); }, []);
 
   async function addProvider() {
     const code = providerForm.code.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-");
     if (!code || !providerForm.name.trim()) return;
-    const { error } = await (supabase as any).from("casino_providers").insert({ code, name: providerForm.name.trim(), is_enabled: false, is_demo: false, status: "not_tested" });
-    if (error) return toast({ title: "Provider was not added", description: error.message, variant: "destructive" });
-    setProviderForm({ code: "", name: "" }); await load();
+    try {
+      await adminFetch("/api/admin/casino-catalogue", { method: "POST", body: JSON.stringify({ resource: "provider", code, name: providerForm.name.trim() }) });
+      setProviderForm({ code: "", name: "" }); await load();
+    } catch (error) { toast({ title: "Provider was not added", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" }); }
   }
 
   async function addGame() {
     if (!gameForm.provider_id || !gameForm.external_game_id.trim() || !gameForm.name.trim()) return;
-    const { error } = await (supabase as any).from("casino_games").insert({ ...gameForm, external_game_id: gameForm.external_game_id.trim(), name: gameForm.name.trim(), is_active: false });
-    if (error) return toast({ title: "Game was not added", description: error.message, variant: "destructive" });
-    setGameForm((value) => ({ ...value, external_game_id: "", name: "" })); await load();
+    try {
+      await adminFetch("/api/admin/casino-catalogue", { method: "POST", body: JSON.stringify({ resource: "game", ...gameForm, external_game_id: gameForm.external_game_id.trim(), name: gameForm.name.trim() }) });
+      setGameForm((value) => ({ ...value, external_game_id: "", name: "" })); await load();
+    } catch (error) { toast({ title: "Game was not added", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" }); }
   }
 
   async function toggle(table: "casino_providers" | "casino_games", id: string, value: boolean) {
-    const changes = table === "casino_providers" ? { is_enabled: value, updated_at: new Date().toISOString() } : { is_active: value, updated_at: new Date().toISOString() };
-    const { error } = await (supabase as any).from(table).update(changes).eq("id", id);
-    if (error) toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    try {
+      await adminFetch("/api/admin/casino-catalogue", { method: "PATCH", body: JSON.stringify({ resource: table === "casino_providers" ? "provider" : "game", id, enabled: value }) });
+    } catch (error) { toast({ title: "Update failed", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" }); }
     await load();
   }
 
   async function removeGame(id: string) {
-    const { error } = await (supabase as any).from("casino_games").delete().eq("id", id);
-    if (error) toast({ title: "Game cannot be deleted", description: "Disable it if transaction history already exists.", variant: "destructive" });
+    try {
+      await adminFetch(`/api/admin/casino-catalogue?resource=game&id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    } catch (error) { toast({ title: "Game cannot be deleted", description: error instanceof Error ? error.message : "Disable it if transaction history already exists.", variant: "destructive" }); }
     await load();
   }
 

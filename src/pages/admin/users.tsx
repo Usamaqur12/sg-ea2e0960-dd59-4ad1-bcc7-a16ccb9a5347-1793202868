@@ -170,23 +170,22 @@ export default function AdminUsers() {
     const action = currentStatus ? "unsuspend" : "suspend";
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ is_suspended: !currentStatus })
-      .eq("id", userId);
-
-    if (error) {
-      toast({
-        title: "Action failed",
-        description: error.message,
-        variant: "destructive",
+    try {
+      await adminFetch(`/api/admin/users/${userId}/suspension`, {
+        method: "PATCH",
+        body: JSON.stringify({ suspended: !currentStatus }),
       });
-    } else {
       toast({
         title: "User updated",
         description: `User has been ${currentStatus ? "unsuspended" : "suspended"}`,
       });
       await loadUsers();
+    } catch (error) {
+      toast({
+        title: "Action failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
     }
   }
 

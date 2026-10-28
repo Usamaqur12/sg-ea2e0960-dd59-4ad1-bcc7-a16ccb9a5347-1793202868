@@ -14,6 +14,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(403).json({ error: "Insufficient permissions" });
   }
 
+  const demoToolsEnabled =
+    process.env.PRODUCTION_MODE !== "true" &&
+    process.env.NEXT_PUBLIC_DEMO_MODE === "true" &&
+    process.env.NEXT_PUBLIC_ENABLE_DEMO_BACKEND === "true";
+  if (!demoToolsEnabled) {
+    return res.status(403).json({
+      error: "Mock market generation is disabled outside an explicitly enabled demo environment",
+    });
+  }
+
   const { eventId } = req.body;
   if (!eventId) {
     return res.status(400).json({ error: "eventId is required" });

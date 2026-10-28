@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle, Wand2 } from "lucide-react";
+import { Activity, CheckCircle2, Eye, EyeOff, Plus, RefreshCw, Save, Trash2, XCircle } from "lucide-react";
 
 type ProviderType = "openligadb" | "thesportsdb_demo" | "thesportsdb_live" | "sportmonks";
 
@@ -45,38 +45,6 @@ const providerLabels: Record<ProviderType, string> = {
   sportmonks: "Sportmonks Football Live Scores",
 };
 
-const openLigaDemoProvider = {
-  id: "demo-openligadb-provider",
-  name: "OpenLigaDB Bundesliga Live Scores",
-  provider_type: "openligadb" as const,
-  settings: { leagueShortcut: "bl1", sport: "Soccer" },
-  is_enabled: true,
-  is_demo: true,
-  priority: 50,
-  sync_interval_seconds: 60,
-  status: "not_tested",
-  last_sync_at: null,
-  last_success_at: null,
-  last_error: null,
-  last_event_count: 0,
-};
-
-const demoProvider = {
-  id: "demo-thesportsdb-provider",
-  name: "TheSportsDB Demo Schedule",
-  provider_type: "thesportsdb_demo" as const,
-  settings: { leagueId: "4328", sport: "Soccer" },
-  is_enabled: true,
-  is_demo: true,
-  priority: 100,
-  sync_interval_seconds: 300,
-  status: "not_tested",
-  last_sync_at: null,
-  last_success_at: null,
-  last_error: null,
-  last_event_count: 0,
-};
-
 export default function SportsProvidersPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -93,7 +61,6 @@ export default function SportsProvidersPage() {
   const [sport, setSport] = useState("soccer");
   const [syncInterval, setSyncInterval] = useState("10");
   const [enabled, setEnabled] = useState(false);
-  const [generatingMarkets, setGeneratingMarkets] = useState(false);
 
   useEffect(() => { void loadProviders(); }, []);
 
@@ -170,92 +137,6 @@ export default function SportsProvidersPage() {
     }
   }
 
-  async function importDemoEvents(events: any[]) {
-    for (const event of events) {
-      let { data: sportRow } = await (supabase as any).from("sports").select("id").eq("slug", event.sport.slug).maybeSingle();
-      if (!sportRow) {
-        const inserted = await (supabase as any).from("sports").insert({ name: event.sport.name, slug: event.sport.slug, icon: event.sport.icon || "🏆", is_active: true, display_order: 100 }).select("id").single();
-        sportRow = inserted.data;
-      }
-      let { data: leagueRow } = await (supabase as any).from("leagues").select("id").eq("sport_id", sportRow.id).eq("name", event.league.name).maybeSingle();
-      if (!leagueRow) {
-        const inserted = await (supabase as any).from("leagues").insert({ sport_id: sportRow.id, name: event.league.name, slug: event.league.slug, country: event.league.country || null, is_active: true, display_order: 100 }).select("id").single();
-        leagueRow = inserted.data;
-      }
-      const eventRecord = {
-        sport_id: sportRow.id,
-        league_id: leagueRow.id,
-        home_team: event.homeTeam,
-        away_team: event.awayTeam,
-        start_time: event.startTime,
-        status: event.status,
-        provider_event_id: event.providerEventId,
-        live_score_home: event.homeScore ?? null,
-        live_score_away: event.awayScore ?? null,
-        live_minute: event.liveMinute ?? null,
-        is_suspended: false,
-        metadata: {
-          providerId: event.providerId,
-          source: "demo-provider-sync",
-          updateId: event.updateId ?? null,
-        },
-      };
-      const { data: existingRows } = await (supabase as any)
-        .from("events")
-        .select("id, metadata")
-        .eq("provider_event_id", event.providerEventId);
-
-      const existing = (existingRows || []).find(
-        (row: { id: string; metadata?: { providerId?: string } | null }) =>
-          row.metadata?.providerId === event.providerId
-      );
-
-      if (existing) {
-        await (supabase as any).from("events").update(eventRecord).eq("id", existing.id);
-      } else {
-        await (supabase as any).from("events").insert(eventRecord);
-      }
-    }
-  }
-
-  async function handleGenerateMarkets() {
-    if (!confirm("Generate mock betting markets for all imported fixtures without odds?")) return;
-
-    setGeneratingMarkets(true);
-    try {
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-
-      const response = await fetch("/api/admin/generate-markets", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ generateForAll: true, includeAdvanced: true }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.error || "Failed to generate markets");
-
-      toast({
-        title: "Markets Generated",
-        description: `Created ${result.marketsCreated} markets with ${result.oddsCreated} odds for ${result.eventsProcessed} fixtures`,
-      });
-
-      await loadProviders();
-    } catch (error) {
-      toast({
-        title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Could not generate markets",
-        variant: "destructive",
-      });
-    } finally {
-      setGeneratingMarkets(false);
-    }
-  }
-
   async function runAction(provider: ProviderRecord, action: "test" | "sync") {
     setWorkingId(provider.id);
     setResult(null);
@@ -283,15 +164,6 @@ export default function SportsProvidersPage() {
             <p className="text-sm text-muted-foreground">Configure and monitor sports data providers</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              onClick={handleGenerateMarkets}
-              disabled={generatingMarkets}
-              variant="outline"
-              size="sm"
-            >
-              <Wand2 className="h-4 w-4 mr-2" />
-              {generatingMarkets ? "Generating..." : "Generate Mock Markets"}
-            </Button>
             <Button onClick={() => router.push("/admin")} variant="outline" size="sm">
               Back to Dashboard
             </Button>

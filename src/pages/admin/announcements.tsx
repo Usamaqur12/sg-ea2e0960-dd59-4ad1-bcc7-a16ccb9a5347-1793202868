@@ -46,32 +46,38 @@ export default function AdminAnnouncements() {
   });
 
   useEffect(() => {
-    loadAnnouncements();
+    void loadAnnouncements();
   }, []);
+
+  async function adminFetch(url: string, init?: RequestInit) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Admin session expired");
+    const response = await fetch(url, {
+      ...init,
+      headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}`, ...(init?.headers || {}) },
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Announcement request failed");
+    return body;
+  }
 
   async function loadAnnouncements() {
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("announcements")
-      .select("*")
-      .order("priority", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (error) {
+    try {
+      const body = await adminFetch("/api/admin/announcements");
+      const typedAnnouncements = (body.announcements || []).map((announcement: Announcement) => ({
+        ...announcement,
+        type: announcement.type as Announcement["type"],
+      }));
+      setAnnouncements(typedAnnouncements);
+    } catch (error) {
       console.error("Error loading announcements:", error);
       toast({
         title: "Error",
-        description: "Failed to load announcements",
+        description: error instanceof Error ? error.message : "Failed to load announcements",
         variant: "destructive",
       });
-    } else if (data) {
-      // Cast types properly
-      const typedAnnouncements = data.map(a => ({
-        ...a,
-        type: a.type as "info" | "warning" | "success" | "urgent",
-      }));
-      setAnnouncements(typedAnnouncements);
     }
 
     setLoading(false);
@@ -96,23 +102,14 @@ export default function AdminAnnouncements() {
       };
 
       if (editingId) {
-        const { error } = await supabase
-          .from("announcements")
-          .update(announcementData)
-          .eq("id", editingId);
-
-        if (error) throw error;
+        await adminFetch("/api/admin/announcements", { method: "PATCH", body: JSON.stringify({ id: editingId, ...announcementData }) });
 
         toast({
           title: "Announcement Updated",
           description: "The announcement has been updated successfully",
         });
       } else {
-        const { error } = await supabase
-          .from("announcements")
-          .insert(announcementData);
-
-        if (error) throw error;
+        await adminFetch("/api/admin/announcements", { method: "POST", body: JSON.stringify(announcementData) });
 
         toast({
           title: "Announcement Created",
@@ -139,40 +136,34 @@ export default function AdminAnnouncements() {
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this announcement?")) return;
 
-    const { error } = await supabase
-      .from("announcements")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
+    try {
+      await adminFetch(`/api/admin/announcements?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      toast({ title: "Announcement Deleted", description: "The announcement has been removed" });
+      await loadAnnouncements();
+    } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to delete announcement",
+        description: error instanceof Error ? error.message : "Failed to delete announcement",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Announcement Deleted",
-        description: "The announcement has been removed",
-      });
-      await loadAnnouncements();
     }
   }
 
   async function toggleActive(id: string, currentStatus: boolean) {
-    const { error } = await supabase
-      .from("announcements")
-      .update({ is_active: !currentStatus })
-      .eq("id", id);
-
-    if (error) {
+    const current = announcements.find((announcement) => announcement.id === id);
+    if (!current) return;
+    try {
+      await adminFetch("/api/admin/announcements", {
+        method: "PATCH",
+        body: JSON.stringify({ ...current, id, is_active: !currentStatus }),
+      });
+      await loadAnnouncements();
+    } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update announcement status",
+        description: error instanceof Error ? error.message : "Failed to update announcement status",
         variant: "destructive",
       });
-    } else {
-      await loadAnnouncements();
     }
   }
 
