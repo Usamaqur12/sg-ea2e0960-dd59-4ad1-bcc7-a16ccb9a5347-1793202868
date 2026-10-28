@@ -16,6 +16,11 @@ export interface AuthError {
 const DEFAULT_SITE_URL = "http://localhost:3000";
 
 function getURL(): string {
+  if (typeof window !== "undefined") {
+    const origin = window.location.origin;
+    return origin.endsWith("/") ? origin : `${origin}/`;
+  }
+
   let url = process?.env?.NEXT_PUBLIC_VERCEL_URL ?? process?.env?.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
 
   if (!url) {
