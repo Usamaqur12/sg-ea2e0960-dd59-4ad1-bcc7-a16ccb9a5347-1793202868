@@ -56,7 +56,8 @@ export default function Sports() {
   async function loadEvents() {
     try {
       setEventsLoading(true);
-      const eventsData = await fetchUpcomingEvents(selectedSport || undefined);
+      const sportSlug = sports.find(s => s.id === activeSport)?.slug;
+      const eventsData = await fetchUpcomingEvents(sportSlug || undefined);
       if (!eventsData) {
         console.error("Failed to load events");
         return;
