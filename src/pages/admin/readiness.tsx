@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
-import { DEMO_BACKEND_ENABLED } from "@/integrations/supabase/demoClient";
 
 type Item = { id: string; label: string; ready: boolean; detail: string; owner: "development" | "external" };
 type Report = { generatedAt: string; score: number; ready: number; total: number; items: Item[] };

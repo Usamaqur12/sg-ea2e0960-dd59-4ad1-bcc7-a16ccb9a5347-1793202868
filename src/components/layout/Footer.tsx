@@ -45,8 +45,8 @@ export function Footer() {
                 <span className="text-lg font-black tracking-tight">Prime<span className="text-primary">Bet</span></span>
               </div>
             </div>
-            <p className="text-xs text-subtle-foreground leading-relaxed mb-4">
-              Premium sportsbook experience with the best odds, live betting, and casino games. Demo mode with play money.
+            <p className="text-sm text-muted-foreground">
+              Premium sportsbook experience with the best odds, live betting, and casino games.
             </p>
             {socialLinks.length > 0 && <div className="flex items-center gap-2">
               {socialLinks.map((social) => {
@@ -110,8 +110,8 @@ export function Footer() {
 
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-subtle-foreground">
-            © 2026 PrimeBet. All rights reserved. Demo mode - play money only.
+          <p className="text-sm text-muted-foreground">
+            © 2026 PrimeBet. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <span className="text-xs text-subtle-foreground">18+ Only</span>

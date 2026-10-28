@@ -1,17 +1,15 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle, Wand2 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { DEMO_BACKEND_ENABLED } from "@/integrations/supabase/demoClient";
+import { Activity, CheckCircle2, Eye, EyeOff, Plus, Radio, RefreshCw, Save, Trash2, XCircle, Wand2 } from "lucide-react";
 
 type ProviderType = "openligadb" | "thesportsdb_demo" | "thesportsdb_live" | "sportmonks";
 
@@ -97,17 +95,6 @@ export default function SportsProvidersPage() {
   const [generatingMarkets, setGeneratingMarkets] = useState(false);
 
   useEffect(() => { void loadProviders(); }, []);
-
-  useEffect(() => {
-    if (!DEMO_BACKEND_ENABLED || loading || workingId) return;
-    const provider = providers.find((item) => item.provider_type === "openligadb" && item.is_enabled);
-    if (!provider) return;
-
-    const autoSyncKey = "primebet-openligadb-auto-sync-v1";
-    if (window.sessionStorage.getItem(autoSyncKey)) return;
-    window.sessionStorage.setItem(autoSyncKey, "started");
-    void runAction(provider, "sync");
-  }, [loading, providers, workingId]);
 
   async function adminFetch(url: string, init?: RequestInit) {
     const { data: { session } } = await supabase.auth.getSession();
