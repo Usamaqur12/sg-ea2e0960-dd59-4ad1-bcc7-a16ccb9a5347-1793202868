@@ -1,274 +1,254 @@
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { 
-  ArrowUpRight, ArrowDownLeft, Receipt, Search, Calendar,
-  DollarSign, CircleCheck, TriangleAlert
-} from "lucide-react";
-import { canAccessAdminArea } from "@/lib/adminRoles";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, CheckCircle, XCircle, AlertCircle, DollarSign, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 
-type ReconciliationMismatch = {
-  user_id: string;
-  profile_balance: number;
-  ledger_available: number;
-  difference: number;
-};
-
-type TransactionProfile = {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-};
-
-type TransactionRow = {
+interface Transaction {
   id: string;
   user_id: string;
+  user_email: string;
   type: string;
   amount: number;
-  description: string | null;
   status: string;
+  payment_method: string | null;
   created_at: string;
-  profile: TransactionProfile | null;
-};
+  processed_at: string | null;
+  notes: string | null;
+}
 
 export default function AdminTransactions() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const { toast } = useToast();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [reconciliation, setReconciliation] = useState<ReconciliationMismatch[]>([]);
-  const [reconciliationError, setReconciliationError] = useState<string | null>(null);
-  const [reconciliationLoading, setReconciliationLoading] = useState(true);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [action, setAction] = useState<"approve" | "reject" | null>(null);
+  const [notes, setNotes] = useState("");
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    checkAdmin();
+    void loadTransactions();
   }, []);
 
-  async function checkAdmin() {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      router.push("/auth/login");
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || !canAccessAdminArea(profile.admin_role, "transactions")) {
-      router.push("/");
-      return;
-    }
-
-    setUser(user);
-    await Promise.all([loadTransactions(), loadReconciliation()]);
-  }
-
-  async function loadReconciliation() {
-    setReconciliationLoading(true);
-    const { data, error } = await supabase.rpc("get_wallet_reconciliation_report");
-
-    if (error) {
-      setReconciliationError(error.message);
-      setReconciliationLoading(false);
-      return;
-    }
-
-    setReconciliation((data ?? []) as ReconciliationMismatch[]);
-    setReconciliationError(null);
-    setReconciliationLoading(false);
-  }
-
   async function loadTransactions() {
-    setLoading(true);
+    try {
+      const { data: txs } = await supabase
+        .from("wallet_transactions")
+        .select("id, user_id, type, amount, status, payment_method, created_at, processed_at, notes")
+        .order("created_at", { ascending: false })
+        .limit(100);
 
-    const { data, error } = await supabase
-      .from("wallet_transactions")
-      .select("id, user_id, type, amount, description, status, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      console.error("Error loading wallet transactions:", error);
-      setTransactions([]);
-      setLoading(false);
-      return;
-    }
-
-    const userIds = [...new Set((data ?? []).map((transaction) => transaction.user_id))];
-    const { data: profileRows } = userIds.length
-      ? await supabase
+      if (txs) {
+        // Get user emails
+        const userIds = [...new Set(txs.map(t => t.user_id))];
+        const { data: profiles } = await supabase
           .from("profiles")
-          .select("id, email, full_name")
-          .in("id", userIds)
-      : { data: [] };
+          .select("id, email")
+          .in("id", userIds);
 
-    const profileMap = new Map(
-      (profileRows ?? []).map((profile) => [profile.id, profile])
-    );
+        const emailMap = new Map(profiles?.map(p => [p.id, p.email]) || []);
 
-    setTransactions(
-      (data ?? []).map((transaction) => ({
-        ...transaction,
-        amount: Number(transaction.amount ?? 0),
-        profile: profileMap.get(transaction.user_id) ?? null,
-      }))
-    );
-
-    setLoading(false);
+        setTransactions(
+          txs.map(tx => ({
+            ...tx,
+            user_email: emailMap.get(tx.user_id) || "Unknown",
+          }))
+        );
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error loading transactions",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const filteredTransactions = transactions.filter((tx) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      tx.profile?.email?.toLowerCase().includes(query) ||
-      tx.profile?.full_name?.toLowerCase().includes(query) ||
-      tx.description?.toLowerCase().includes(query)
-    );
-  });
+  async function processTransaction(approve: boolean) {
+    if (!selectedTx) return;
 
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case "deposit":
-      case "bet_won":
-      case "bonus_awarded":
-      case "referral_bonus":
-        return <ArrowDownLeft className="h-4 w-4 text-success" />;
-      case "withdrawal":
-      case "bet_placed":
-      case "bonus_wagered":
-        return <ArrowUpRight className="h-4 w-4 text-danger" />;
+    setProcessing(true);
+    try {
+      if (approve) {
+        // Approve: update status and credit wallet
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .update({
+            status: "completed",
+            processed_at: new Date().toISOString(),
+            notes: notes || null,
+          })
+          .eq("id", selectedTx.id);
+
+        if (txError) throw txError;
+
+        // Update wallet balance for deposits
+        if (selectedTx.type === "deposit") {
+          const { data: wallet } = await supabase
+            .from("wallet_accounts")
+            .select("balance")
+            .eq("user_id", selectedTx.user_id)
+            .single();
+
+          if (wallet) {
+            await supabase
+              .from("wallet_accounts")
+              .update({ balance: Number(wallet.balance) + selectedTx.amount })
+              .eq("user_id", selectedTx.user_id);
+          }
+        }
+
+        // Send notification
+        await supabase.from("user_notifications").insert({
+          user_id: selectedTx.user_id,
+          type: "transaction",
+          title: "Transaction Approved",
+          message: `Your ${selectedTx.type} of $${selectedTx.amount.toFixed(2)} has been approved`,
+        });
+
+        toast({
+          title: "Transaction approved",
+          description: "Funds have been credited to the user's wallet",
+        });
+      } else {
+        // Reject: update status only
+        const { error } = await supabase
+          .from("wallet_transactions")
+          .update({
+            status: "failed",
+            processed_at: new Date().toISOString(),
+            notes: notes || "Rejected by admin",
+          })
+          .eq("id", selectedTx.id);
+
+        if (error) throw error;
+
+        // Send notification
+        await supabase.from("user_notifications").insert({
+          user_id: selectedTx.user_id,
+          type: "transaction",
+          title: "Transaction Rejected",
+          message: `Your ${selectedTx.type} of $${selectedTx.amount.toFixed(2)} was rejected. ${notes}`,
+        });
+
+        toast({
+          title: "Transaction rejected",
+          description: "User has been notified",
+        });
+      }
+
+      await loadTransactions();
+      setSelectedTx(null);
+      setAction(null);
+      setNotes("");
+    } catch (error: any) {
+      toast({
+        title: "Error processing transaction",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  const pending = transactions.filter(t => t.status === "pending");
+  const completed = transactions.filter(t => t.status === "completed");
+  const failed = transactions.filter(t => t.status === "failed");
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return (
+          <Badge variant="outline" className="border-warning text-warning">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge className="bg-success/10 text-success border-success/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case "failed":
+        return (
+          <Badge variant="destructive">
+            <XCircle className="h-3 w-3 mr-1" />
+            Failed
+          </Badge>
+        );
       default:
-        return <Receipt className="h-4 w-4 text-muted-foreground" />;
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  const getTypeBadge = (type: string) => {
-    const typeMap: Record<string, { label: string; variant: string }> = {
-      deposit: { label: "Deposit", variant: "success" },
-      withdrawal: { label: "Withdrawal", variant: "warning" },
-      bet_placed: { label: "Bet Placed", variant: "secondary" },
-      bet_won: { label: "Bet Won", variant: "success" },
-      bet_lost: { label: "Bet Lost", variant: "destructive" },
-      bonus_awarded: { label: "Bonus Awarded", variant: "outline" },
-      bonus_wagered: { label: "Bonus Wagered", variant: "secondary" },
-      referral_bonus: { label: "Referral Bonus", variant: "outline" },
-      adjustment: { label: "Adjustment", variant: "outline" },
-    };
-
-    const config = typeMap[type] || { label: type, variant: "outline" };
-    return (
-      <Badge variant={config.variant as any} className="text-xs">
-        {config.label}
-      </Badge>
+  const getTypeIcon = (type: string) => {
+    return type === "deposit" ? (
+      <ArrowDownCircle className="h-4 w-4 text-success" />
+    ) : (
+      <ArrowUpCircle className="h-4 w-4 text-warning" />
     );
   };
-
-  const totalDeposits = transactions
-    .filter((tx) => tx.type === "deposit")
-    .reduce((sum, tx) => sum + Number(tx.amount), 0);
-
-  const totalWithdrawals = transactions
-    .filter((tx) => tx.type === "withdrawal")
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0);
-
-  const totalBetStakes = transactions
-    .filter((tx) => tx.type === "bet_placed")
-    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount)), 0);
-
-  const totalPayouts = transactions
-    .filter((tx) => tx.type === "bet_won")
-    .reduce((sum, tx) => sum + Number(tx.amount), 0);
 
   return (
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Wallet Transactions</h1>
-          <p className="text-sm text-muted-foreground">
-            View all wallet transactions across the platform
-          </p>
+          <h1 className="text-2xl font-bold">Transaction Management</h1>
+          <p className="text-sm text-muted-foreground">Review and approve pending deposits and withdrawals</p>
         </div>
 
-        <Card className="surface">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              {!reconciliationLoading && reconciliation.length === 0 && !reconciliationError ? (
-                <CircleCheck className="h-5 w-5 text-success" />
-              ) : (
-                <TriangleAlert className="h-5 w-5 text-warning" />
-              )}
-              Wallet Reconciliation
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {reconciliationLoading ? (
-              <p className="text-sm text-muted-foreground">Checking ledger balances...</p>
-            ) : reconciliationError ? (
-              <p className="text-sm text-muted-foreground">
-                Reconciliation report is available to finance-authorized staff only.
-              </p>
-            ) : reconciliation.length === 0 ? (
-              <p className="text-sm text-success">
-                All profile balances match the cash and bonus ledger.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-warning">
-                  {reconciliation.length} balance mismatch{reconciliation.length === 1 ? "" : "es"} require review.
-                </p>
-                {reconciliation.slice(0, 10).map((row) => (
-                  <div key={row.user_id} className="grid grid-cols-2 gap-2 rounded border border-warning/30 p-3 text-xs md:grid-cols-4">
-                    <span className="truncate font-mono">{row.user_id}</span>
-                    <span>Profile: ${Number(row.profile_balance).toFixed(2)}</span>
-                    <span>Ledger: ${Number(row.ledger_available).toFixed(2)}</span>
-                    <span className="font-semibold text-warning">Difference: ${Number(row.difference).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="surface">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
-                  <ArrowDownLeft className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold">${totalDeposits.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Total Deposits</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="surface">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
-                  <ArrowUpRight className="h-5 w-5 text-warning" />
+                  <Clock className="h-5 w-5 text-warning" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">${totalWithdrawals.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Total Withdrawals</div>
+                  <div className="text-2xl font-bold">{pending.length}</div>
+                  <div className="text-xs text-muted-foreground">Pending</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{completed.length}</div>
+                  <div className="text-xs text-muted-foreground">Completed</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center">
+                  <XCircle className="h-5 w-5 text-danger" />
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{failed.length}</div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           <Card className="surface">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -276,88 +256,232 @@ export default function AdminTransactions() {
                   <DollarSign className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">${totalBetStakes.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Total Stakes</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="surface">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
-                  <Receipt className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold">${totalPayouts.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground">Total Payouts</div>
+                  <div className="text-2xl font-bold font-mono">
+                    ${pending.reduce((sum, t) => sum + t.amount, 0).toFixed(0)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Pending Value</div>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Transactions List */}
+        {/* Transactions */}
         <Card className="surface">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>All Transactions</CardTitle>
-              <div className="relative w-64">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search by user or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 h-9 text-xs"
-                />
-              </div>
-            </div>
+            <CardTitle>Transactions</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading transactions...
-              </div>
-            ) : filteredTransactions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No transactions found
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredTransactions.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between p-3 rounded border border-border hover:border-primary/30 transition-smooth">
-                    <div className="flex items-center gap-3 flex-1">
-                      {getTransactionIcon(tx.type)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm truncate">
-                            {tx.profile?.full_name || tx.profile?.email || "Unknown User"}
-                          </span>
-                          {getTypeBadge(tx.type)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {tx.description}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(tx.created_at).toLocaleDateString()}
-                      </div>
-                      <div className={`text-sm font-mono font-bold ${tx.amount >= 0 ? 'text-success' : 'text-danger'}`}>
-                        {tx.amount >= 0 ? '+' : ''}{tx.amount >= 0 ? '$' : '-$'}{Math.abs(tx.amount).toFixed(2)}
-                      </div>
-                    </div>
+            <Tabs defaultValue="pending">
+              <TabsList className="mb-4">
+                <TabsTrigger value="pending">
+                  Pending ({pending.length})
+                </TabsTrigger>
+                <TabsTrigger value="completed">
+                  Completed ({completed.length})
+                </TabsTrigger>
+                <TabsTrigger value="failed">
+                  Failed ({failed.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="pending" className="space-y-3">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                ) : pending.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    No pending transactions
+                  </p>
+                ) : (
+                  pending.map((tx) => (
+                    <TransactionCard
+                      key={tx.id}
+                      transaction={tx}
+                      onAction={(action) => {
+                        setSelectedTx(tx);
+                        setAction(action);
+                      }}
+                    />
+                  ))
+                )}
+              </TabsContent>
+
+              <TabsContent value="completed" className="space-y-3">
+                {completed.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    No completed transactions
+                  </p>
+                ) : (
+                  completed.slice(0, 20).map((tx) => (
+                    <TransactionCard key={tx.id} transaction={tx} />
+                  ))
+                )}
+              </TabsContent>
+
+              <TabsContent value="failed" className="space-y-3">
+                {failed.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-8">
+                    No failed transactions
+                  </p>
+                ) : (
+                  failed.slice(0, 20).map((tx) => (
+                    <TransactionCard key={tx.id} transaction={tx} />
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
+
+      {/* Approval/Rejection Dialog */}
+      <Dialog open={action !== null} onOpenChange={() => { setAction(null); setSelectedTx(null); setNotes(""); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {action === "approve" ? "Approve Transaction" : "Reject Transaction"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTx && (
+                <div className="space-y-2 mt-4 text-sm">
+                  <div><strong>User:</strong> {selectedTx.user_email}</div>
+                  <div><strong>Type:</strong> {selectedTx.type}</div>
+                  <div><strong>Amount:</strong> ${selectedTx.amount.toFixed(2)}</div>
+                  <div><strong>Method:</strong> {selectedTx.payment_method || "N/A"}</div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Notes (optional)</label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={action === "reject" ? "Reason for rejection..." : "Admin notes..."}
+                rows={3}
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setAction(null); setSelectedTx(null); setNotes(""); }}
+              disabled={processing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={action === "approve" ? "default" : "destructive"}
+              onClick={() => processTransaction(action === "approve")}
+              disabled={processing}
+            >
+              {processing ? "Processing..." : action === "approve" ? "Approve" : "Reject"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
+  );
+}
+
+function TransactionCard({
+  transaction,
+  onAction,
+}: {
+  transaction: Transaction;
+  onAction?: (action: "approve" | "reject") => void;
+}) {
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return (
+          <Badge variant="outline" className="border-warning text-warning">
+            <Clock className="h-3 w-3 mr-1" />
+            Pending
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge className="bg-success/10 text-success border-success/30">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        );
+      case "failed":
+        return (
+          <Badge variant="destructive">
+            <XCircle className="h-3 w-3 mr-1" />
+            Failed
+          </Badge>
+        );
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    return type === "deposit" ? (
+      <ArrowDownCircle className="h-4 w-4 text-success" />
+    ) : (
+      <ArrowUpCircle className="h-4 w-4 text-warning" />
+    );
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border border-border gap-4">
+      <div className="flex items-center gap-4 flex-1">
+        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+          {getTypeIcon(transaction.type)}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-1">
+            <span className="font-medium capitalize">{transaction.type}</span>
+            {getStatusBadge(transaction.status)}
+          </div>
+          <div className="text-sm text-muted-foreground space-y-0.5">
+            <div>{transaction.user_email}</div>
+            <div>
+              {new Date(transaction.created_at).toLocaleString()}
+              {transaction.payment_method && ` · ${transaction.payment_method}`}
+            </div>
+            {transaction.notes && (
+              <div className="text-xs italic">{transaction.notes}</div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-right">
+          <div className="text-lg font-bold font-mono">
+            ${transaction.amount.toFixed(2)}
+          </div>
+        </div>
+        {transaction.status === "pending" && onAction && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-success border-success/30"
+              onClick={() => onAction("approve")}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => onAction("reject")}
+            >
+              Reject
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

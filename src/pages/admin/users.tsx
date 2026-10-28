@@ -1,466 +1,305 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Search, Shield, Ban, CheckCircle, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useRouter } from "next/router";
+import { Search, UserCheck, Ban, Mail, Phone, Calendar, Wallet, AlertTriangle } from "lucide-react";
+import Link from "next/link";
 
 interface User {
   id: string;
   email: string;
-  full_name: string;
-  wallet_balance: number;
+  full_name: string | null;
   kyc_status: string;
   is_suspended: boolean;
-  suspension_reason: string | null;
   created_at: string;
+  last_login_at: string | null;
+  wallet_balance: number;
+  total_bets: number;
+  total_deposits: number;
 }
 
 export default function AdminUsers() {
   const { toast } = useToast();
-  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [suspendDialogOpen, setSuspendDialogOpen] = useState(false);
-  const [unsuspendDialogOpen, setUnsuspendDialogOpen] = useState(false);
-  const [suspensionReason, setSuspensionReason] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [kycFilter, setKycFilter] = useState("all");
 
   useEffect(() => {
-    loadUsers();
+    void loadUsers();
   }, []);
 
-  useEffect(() => {
-    if (router.isReady && typeof router.query.user === "string") setSearchTerm(router.query.user);
-  }, [router.isReady, router.query.user]);
-
   async function loadUsers() {
-    setLoading(true);
-    const { data: profileRows, error } = await supabase
-      .from("profiles")
-      .select("id, email, full_name, kyc_status, is_suspended, suspension_reason, created_at")
-      .eq("is_admin", false)
-      .order("created_at", { ascending: false });
+    try {
+      // Get profiles with wallet and betting stats
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, kyc_status, is_suspended, created_at, last_login_at")
+        .eq("is_admin", false)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Error loading users:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load users",
-        variant: "destructive",
-      });
-      setUsers([]);
-      setLoading(false);
-      return;
-    }
-
-    const userIds = (profileRows ?? []).map((profile) => profile.id);
-    const { data: walletRows } = userIds.length
-      ? await supabase
+      if (profiles) {
+        // Get wallet balances
+        const { data: wallets } = await supabase
           .from("wallet_accounts")
           .select("user_id, balance")
-          .in("user_id", userIds)
-      : { data: [] };
+          .in("user_id", profiles.map(p => p.id));
 
-    const balanceMap = new Map(
-      (walletRows ?? []).map((wallet) => [wallet.user_id, Number(wallet.balance ?? 0)])
-    );
+        // Get bet counts
+        const { data: betCounts } = await supabase
+          .from("bets")
+          .select("user_id")
+          .in("user_id", profiles.map(p => p.id));
 
-    setUsers(
-      (profileRows ?? []).map((profile) => ({
-        ...profile,
-        wallet_balance: balanceMap.get(profile.id) ?? 0,
-      }))
-    );
-    setLoading(false);
-  }
+        // Get deposit totals
+        const { data: deposits } = await supabase
+          .from("wallet_transactions")
+          .select("user_id, amount")
+          .eq("type", "deposit")
+          .eq("status", "completed")
+          .in("user_id", profiles.map(p => p.id));
 
-  async function handleSuspendUser() {
-    if (!selectedUser || !suspensionReason.trim()) {
+        const walletMap = new Map(wallets?.map(w => [w.user_id, Number(w.balance)]) || []);
+        const betCountMap = new Map<string, number>();
+        betCounts?.forEach(b => {
+          betCountMap.set(b.user_id, (betCountMap.get(b.user_id) || 0) + 1);
+        });
+        const depositMap = new Map<string, number>();
+        deposits?.forEach(d => {
+          depositMap.set(d.user_id, (depositMap.get(d.user_id) || 0) + Number(d.amount));
+        });
+
+        const enriched: User[] = profiles.map(p => ({
+          id: p.id,
+          email: p.email,
+          full_name: p.full_name,
+          kyc_status: p.kyc_status || "not_submitted",
+          is_suspended: p.is_suspended || false,
+          created_at: p.created_at,
+          last_login_at: p.last_login_at,
+          wallet_balance: walletMap.get(p.id) || 0,
+          total_bets: betCountMap.get(p.id) || 0,
+          total_deposits: depositMap.get(p.id) || 0,
+        }));
+
+        setUsers(enriched);
+      }
+    } catch (error: any) {
       toast({
-        title: "Error",
-        description: "Please provide a suspension reason",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setActionLoading(true);
-
-    try {
-      // Get current admin user
-      const { data: { user: adminUser } } = await supabase.auth.getUser();
-
-      // Update user status
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          is_suspended: true,
-          suspension_reason: suspensionReason,
-        })
-        .eq("id", selectedUser.id);
-
-      if (updateError) throw updateError;
-
-      // Create audit log
-      await supabase.from("audit_logs").insert({
-        admin_id: adminUser?.id,
-        action: "suspend_user",
-        entity_type: "profile",
-        entity_id: selectedUser.id,
-        changes: {
-          user_email: selectedUser.email,
-          suspension_reason: suspensionReason,
-        },
-      });
-
-      toast({
-        title: "User Suspended",
-        description: `${selectedUser.email} has been suspended`,
-      });
-
-      // Reload users
-      await loadUsers();
-      setSuspendDialogOpen(false);
-      setSuspensionReason("");
-      setSelectedUser(null);
-    } catch (error) {
-      console.error("Error suspending user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to suspend user",
+        title: "Error loading users",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
-      setActionLoading(false);
+      setLoading(false);
     }
   }
 
-  async function handleUnsuspendUser() {
-    if (!selectedUser) return;
+  async function toggleSuspension(userId: string, currentStatus: boolean) {
+    const action = currentStatus ? "unsuspend" : "suspend";
+    if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
 
-    setActionLoading(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_suspended: !currentStatus })
+      .eq("id", userId);
 
-    try {
-      // Get current admin user
-      const { data: { user: adminUser } } = await supabase.auth.getUser();
-
-      // Update user status
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          is_suspended: false,
-          suspension_reason: null,
-        })
-        .eq("id", selectedUser.id);
-
-      if (updateError) throw updateError;
-
-      // Create audit log
-      await supabase.from("audit_logs").insert({
-        admin_id: adminUser?.id,
-        action: "unsuspend_user",
-        entity_type: "profile",
-        entity_id: selectedUser.id,
-        changes: {
-          user_email: selectedUser.email,
-          previous_reason: selectedUser.suspension_reason,
-        },
-      });
-
+    if (error) {
       toast({
-        title: "User Unsuspended",
-        description: `${selectedUser.email} has been reactivated`,
-      });
-
-      // Reload users
-      await loadUsers();
-      setUnsuspendDialogOpen(false);
-      setSelectedUser(null);
-    } catch (error) {
-      console.error("Error unsuspending user:", error);
-      toast({
-        title: "Error",
-        description: "Failed to unsuspend user",
+        title: "Action failed",
+        description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setActionLoading(false);
+    } else {
+      toast({
+        title: "User updated",
+        description: `User has been ${currentStatus ? "unsuspended" : "suspended"}`,
+      });
+      await loadUsers();
     }
   }
 
-  function openSuspendDialog(user: User) {
-    setSelectedUser(user);
-    setSuspensionReason("");
-    setSuspendDialogOpen(true);
-  }
+  const filtered = users.filter(user => {
+    if (statusFilter === "active" && user.is_suspended) return false;
+    if (statusFilter === "suspended" && !user.is_suspended) return false;
+    if (kycFilter !== "all" && user.kyc_status !== kycFilter) return false;
+    
+    const needle = search.toLowerCase();
+    return !needle || 
+      user.email.toLowerCase().includes(needle) ||
+      (user.full_name && user.full_name.toLowerCase().includes(needle));
+  });
 
-  function openUnsuspendDialog(user: User) {
-    setSelectedUser(user);
-    setUnsuspendDialogOpen(true);
-  }
-
-  const filteredUsers = users.filter(
-    (user) =>
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getKycBadge = (status: string) => {
+    switch (status) {
+      case "approved":
+        return <Badge className="bg-success/10 text-success border-success/30">Verified</Badge>;
+      case "pending":
+        return <Badge variant="outline" className="border-warning text-warning">Pending</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>;
+      default:
+        return <Badge variant="outline">Not Submitted</Badge>;
+    }
+  };
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold">User Management</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage user accounts and permissions
-            </p>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">User Management</h1>
+          <p className="text-sm text-muted-foreground">Search, view, and manage user accounts</p>
         </div>
 
+        {/* Filters */}
+        <Card className="surface">
+          <CardContent className="p-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_200px_200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by email or name..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="suspended">Suspended</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={kycFilter} onValueChange={setKycFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="KYC" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All KYC</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="not_submitted">Not Submitted</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">Total Users</div>
+              <div className="text-2xl font-bold">{users.length}</div>
+            </CardContent>
+          </Card>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">Active</div>
+              <div className="text-2xl font-bold text-success">
+                {users.filter(u => !u.is_suspended).length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">KYC Verified</div>
+              <div className="text-2xl font-bold text-primary">
+                {users.filter(u => u.kyc_status === "approved").length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="surface">
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">Suspended</div>
+              <div className="text-2xl font-bold text-danger">
+                {users.filter(u => u.is_suspended).length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Users List */}
         <Card className="surface">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>All Users</CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search users..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 w-64"
-                  />
-                </div>
-              </div>
-            </div>
+            <CardTitle>Users ({filtered.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-16 rounded animate-pulse bg-background" />
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />
                 ))}
               </div>
+            ) : filtered.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No users found</p>
             ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead>KYC Status</TableHead>
-                      <TableHead>Account Status</TableHead>
-                      <TableHead>Joined</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No users found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredUsers.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <span className="text-xs font-semibold">
-                                  {user.full_name?.charAt(0) || user.email?.charAt(0) || "?"}
-                                </span>
-                              </div>
-                              <span className="font-medium">{user.full_name || "Unknown"}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">{user.email}</TableCell>
-                          <TableCell className="font-mono font-semibold">
-                            ${Number(user.wallet_balance ?? 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                user.kyc_status === "approved"
-                                  ? "default"
-                                  : user.kyc_status === "pending"
-                                  ? "secondary"
-                                  : "outline"
-                              }
-                              className="text-xs"
-                            >
-                              {user.kyc_status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {user.is_suspended ? (
-                              <div className="flex flex-col gap-1">
-                                <Badge variant="destructive" className="text-xs w-fit">
-                                  <Ban className="h-3 w-3 mr-1" />
-                                  Suspended
-                                </Badge>
-                                {user.suspension_reason && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {user.suspension_reason}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
-                                <CheckCircle className="h-3 w-3 mr-1 text-success" />
-                                Active
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {user.is_suspended ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openUnsuspendDialog(user)}
-                                  className="text-xs"
-                                >
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Unsuspend
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openSuspendDialog(user)}
-                                  className="text-xs text-danger hover:text-danger"
-                                >
-                                  <Ban className="h-3 w-3 mr-1" />
-                                  Suspend
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+              <div className="space-y-3">
+                {filtered.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-lg border border-border gap-4"
+                  >
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium">{user.email}</div>
+                          {user.full_name && (
+                            <div className="text-sm text-muted-foreground">{user.full_name}</div>
+                          )}
+                        </div>
+                        {user.is_suspended && (
+                          <Badge variant="destructive" className="ml-2">
+                            <Ban className="h-3 w-3 mr-1" />
+                            Suspended
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Joined {new Date(user.created_at).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Wallet className="h-3 w-3" />
+                          ${user.wallet_balance.toFixed(2)}
+                        </div>
+                        <div>{user.total_bets} bets</div>
+                        <div>${user.total_deposits.toFixed(2)} deposited</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {getKycBadge(user.kyc_status)}
+                      <Button
+                        size="sm"
+                        variant={user.is_suspended ? "outline" : "destructive"}
+                        onClick={() => toggleSuspension(user.id, user.is_suspended)}
+                      >
+                        {user.is_suspended ? "Unsuspend" : "Suspend"}
+                      </Button>
+                      <Link href={`/admin/users/${user.id}`}>
+                        <Button size="sm" variant="outline">View Details</Button>
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Suspend User Dialog */}
-      <Dialog open={suspendDialogOpen} onOpenChange={setSuspendDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-danger" />
-              Suspend User Account
-            </DialogTitle>
-            <DialogDescription>
-              This will immediately block {selectedUser?.email} from accessing their account.
-              They will not be able to log in or place bets.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="suspension-reason">Suspension Reason *</Label>
-              <Textarea
-                id="suspension-reason"
-                value={suspensionReason}
-                onChange={(e) => setSuspensionReason(e.target.value)}
-                placeholder="e.g., High-risk betting patterns detected, potential fraud investigation..."
-                rows={4}
-                className="resize-none"
-              />
-              <p className="text-xs text-muted-foreground">
-                This reason will be stored in the audit log and shown to the user.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setSuspendDialogOpen(false)}
-              disabled={actionLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleSuspendUser}
-              disabled={actionLoading || !suspensionReason.trim()}
-            >
-              {actionLoading ? "Suspending..." : "Suspend Account"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Unsuspend User Dialog */}
-      <Dialog open={unsuspendDialogOpen} onOpenChange={setUnsuspendDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-success" />
-              Unsuspend User Account
-            </DialogTitle>
-            <DialogDescription>
-              This will restore access for {selectedUser?.email}. They will be able to log in
-              and use their account normally.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedUser?.suspension_reason && (
-            <div className="py-4 space-y-2">
-              <Label>Previous Suspension Reason:</Label>
-              <div className="p-3 rounded-lg bg-muted/50 text-sm">
-                {selectedUser.suspension_reason}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setUnsuspendDialogOpen(false)}
-              disabled={actionLoading}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleUnsuspendUser} disabled={actionLoading}>
-              {actionLoading ? "Unsuspending..." : "Unsuspend Account"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </AdminLayout>
   );
 }
