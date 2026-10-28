@@ -61,7 +61,7 @@ export default function AccountPage() {
         .single();
 
       const { data: wallet } = await supabase
-        .from("wallets")
+        .from("wallet_accounts")
         .select("balance")
         .eq("user_id", user.id)
         .single();
@@ -108,7 +108,7 @@ export default function AccountPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header user={null} onAuthClick={() => {}} />
         <main className="container mx-auto px-4 py-8">
           <div className="text-center py-12">Loading...</div>
         </main>
@@ -121,7 +121,7 @@ export default function AccountPage() {
   if (!profile) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header user={null} onAuthClick={() => {}} />
         <main className="container mx-auto px-4 py-8">
           <div className="text-center py-12">Profile not found</div>
         </main>
@@ -137,7 +137,7 @@ export default function AccountPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header user={profile} onAuthClick={() => {}} />
       
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <SEO 
