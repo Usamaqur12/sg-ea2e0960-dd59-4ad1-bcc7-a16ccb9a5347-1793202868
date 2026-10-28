@@ -46,9 +46,8 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     void fetchUpcomingEvents()
-      .then(({ events, error }) => {
-        setSportsbookEvents(events);
-        setFeedError(error ?? null);
+      .then(() => {
+        setFeedLoading(false);
       })
       .finally(() => setFeedLoading(false));
     
@@ -161,6 +160,23 @@ export default function Home() {
     stake: number;
     status: string;
   }> = [];
+
+  useEffect(() => {
+    async function loadFeaturedEvents() {
+      try {
+        const eventsData = await fetchUpcomingEvents();
+        if (!eventsData || !Array.isArray(eventsData)) {
+          console.error("Failed to load events");
+          return;
+        }
+        setSportsbookEvents(eventsData.slice(0, 6) as any);
+      } catch (error: any) {
+        console.error("Failed to load events:", error);
+      }
+    }
+
+    void loadFeaturedEvents();
+  }, []);
 
   if (!mounted) {
     return (
