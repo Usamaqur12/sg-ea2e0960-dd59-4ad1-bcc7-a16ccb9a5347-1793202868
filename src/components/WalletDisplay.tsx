@@ -8,8 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 interface WalletBalance {
   balance: number;
   currency: string;
-  locked_amount: number;
-  bonus_balance: number;
   last_transaction_at: string | null;
 }
 
@@ -63,7 +61,7 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
       // Get wallet account
       const { data: wallet, error } = await supabase
         .from("wallet_accounts")
-        .select("balance, currency, locked_amount, bonus_balance, last_transaction_at")
+        .select("balance, currency, last_transaction_at")
         .eq("user_id", targetUserId)
         .single();
 
@@ -125,8 +123,8 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
     );
   }
 
-  const availableBalance = balance.balance - balance.locked_amount;
-  const totalBalance = balance.balance + balance.bonus_balance;
+  const availableBalance = balance.balance;
+  const totalBalance = balance.balance;
 
   if (compact) {
     return (
@@ -136,11 +134,6 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
           <span className="text-sm font-semibold">
             ${availableBalance.toFixed(2)}
           </span>
-          {balance.bonus_balance > 0 && (
-            <span className="text-xs text-muted-foreground">
-              +${balance.bonus_balance.toFixed(2)} bonus
-            </span>
-          )}
         </div>
       </div>
     );
@@ -186,25 +179,11 @@ export function WalletDisplay({ userId, compact = false, showDetails = true }: W
           )}
 
           {/* Additional Details */}
-          {showDetails && (
+          {showDetails && balance.last_transaction_at && (
             <div className="space-y-2 pt-4 border-t">
-              {balance.locked_amount > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Locked:</span>
-                  <span className="font-medium">${balance.locked_amount.toFixed(2)}</span>
-                </div>
-              )}
-              {balance.bonus_balance > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Bonus:</span>
-                  <span className="font-medium text-amber-600 dark:text-amber-400">
-                    ${balance.bonus_balance.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm font-semibold pt-2 border-t">
-                <span>Total:</span>
-                <span>${totalBalance.toFixed(2)}</span>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Last transaction:</span>
+                <span>{new Date(balance.last_transaction_at).toLocaleDateString()}</span>
               </div>
             </div>
           )}
