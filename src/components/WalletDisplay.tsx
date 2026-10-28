@@ -28,7 +28,9 @@ interface Transaction {
 
 export function WalletDisplay({ userId, showDetails = false, compact = false }: WalletDisplayProps) {
   const [balance, setBalance] = useState<WalletBalance | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
