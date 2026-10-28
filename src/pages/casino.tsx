@@ -188,7 +188,7 @@ export default function CasinoPage() {
       return;
     }
     if (!casinoEnabled || typeof gameId === "number") {
-      alert("This is a play-money demo game. A licensed provider must be enabled before remote game launch.");
+      alert("Casino game launch requires licensed provider setup. Contact support for activation.");
       return;
     }
     setLaunchingGame(String(gameId));
@@ -252,7 +252,7 @@ export default function CasinoPage() {
             <div>
               <h1 className="text-4xl font-bold mb-2">Casino Lobby</h1>
               <p className="text-lg text-muted-foreground mb-4">
-                {casinoEnabled ? "Licensed-provider catalogue connection is active" : "Demo casino games - play for fun with demo balance"}
+                {casinoEnabled ? "Licensed-provider catalogue connection is active" : "Casino games currently unavailable"}
               </p>
               {!user && (
                 <Button size="lg" className="bg-gold hover:bg-gold/90 text-background" onClick={() => void router.push("/auth/register?returnTo=/casino")}>
@@ -310,7 +310,7 @@ export default function CasinoPage() {
                           onClick={() => handlePlayGame(game.id)}
                         >
                           <Play className="h-4 w-4" />
-                          {launchingGame === String(game.id) ? "Launching..." : game.realProvider ? "Play" : "Play Demo"}
+                          {launchingGame === String(game.id) ? "Launching..." : "Play"}
                         </Button>
                       </div>
                       {game.new && (
@@ -366,7 +366,7 @@ export default function CasinoPage() {
                         onClick={() => handlePlayGame(game.id)}
                       >
                         <Play className="h-4 w-4" />
-                          {launchingGame === String(game.id) ? "Launching..." : game.realProvider ? "Play" : "Play Demo"}
+                          {launchingGame === String(game.id) ? "Launching..." : "Play"}
                       </Button>
                     </div>
                     {game.new && (
@@ -399,15 +399,6 @@ export default function CasinoPage() {
             ))}
           </div>
         </section>
-
-        {/* Demo Notice */}
-        <Card className="mt-8 border-muted">
-          <CardContent className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              {casinoEnabled ? "Provider games launch only for approved accounts. Transactions are recorded in the wallet ledger." : "Casino games are currently unavailable. Please check back later."}
-            </p>
-          </CardContent>
-        </Card>
       </main>
 
       <Footer />

@@ -11,7 +11,7 @@ export interface SEOProps {
 // SEO elements that can be used in _document.tsx (returns JSX without Head wrapper)
 export function SEOElements({
   title = "PrimeBet",
-  description = "Premium Demo Sportsbook & Casino Platform",
+  description = "Premium Sportsbook & Casino Platform",
   image = "/og-image.png",
   url = "https://primebet.app",
 }: SEOProps = {}) {
@@ -49,7 +49,7 @@ export function SEOElements({
 // Note: Flattened structure (no fragment) for better Next.js Head compatibility during hot reload
 export function SEO({
   title = "PrimeBet",
-  description = "Premium Demo Sportsbook & Casino Platform",
+  description = "Premium Sportsbook & Casino Platform",
   image = "/og-image.png",
   url = "https://primebet.app",
 }: SEOProps = {}) {

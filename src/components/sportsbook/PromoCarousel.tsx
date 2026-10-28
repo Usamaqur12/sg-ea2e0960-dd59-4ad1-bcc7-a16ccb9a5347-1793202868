@@ -7,16 +7,16 @@ import Link from "next/link";
 const promos = [
   {
     id: 1,
-    title: "Welcome Bonus: $10,000 Demo Balance",
-    subtitle: "Get started with exclusive welcome offers!",
-    cta: "Sign Up Now",
+    title: "Welcome Bonus",
+    subtitle: "Get started with exclusive welcome offers and promotions!",
+    cta: "Get Started",
     href: "/auth/register",
     gradient: "from-primary/15 via-primary/5 to-transparent",
   },
   {
     id: 2,
     title: "Live Cricket Markets",
-    subtitle: "Follow live cricket scores and available demo markets",
+    subtitle: "Follow live cricket scores and place your bets",
     cta: "Bet Now",
     href: "/live?sport=cricket",
     gradient: "from-success/15 via-success/5 to-transparent",

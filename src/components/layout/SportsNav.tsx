@@ -213,10 +213,10 @@ export function SportsNav() {
           <div className="p-2.5 rounded bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 border border-primary/20">
             <div className="flex items-center gap-1.5 mb-1">
               <Trophy className="h-3.5 w-3.5 text-primary" />
-              <p className="text-xs font-bold text-primary">Play-Money Demo</p>
+              <p className="text-xs font-bold text-primary">Sign Up Bonus</p>
             </div>
-            <p className="text-[10px] text-muted-foreground mb-2 leading-tight">
-              Practice with demo credits—no deposit required
+            <p className="mt-1 text-xs text-muted-foreground">
+              Get started with exclusive welcome offers
             </p>
             <Button asChild size="sm" className="w-full h-7 text-xs font-bold bg-primary-bright hover:bg-primary-hover text-background">
               <Link href="/sports">Explore Sports</Link>

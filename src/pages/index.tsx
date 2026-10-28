@@ -217,13 +217,9 @@ export default function Home() {
               <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-background border border-primary/30 p-6 md:p-8">
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDAsIDIyOSwgMjU1LCAwLjA1KSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
                 <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                  <div className="space-y-2">
-                    <Badge className="bg-primary/15 text-primary border-primary/30 text-[10px] font-bold">PLAY-MONEY DEMO</Badge>
-                    <h2 className="text-2xl md:text-3xl font-black">Practice with Demo Credits</h2>
-                    <p className="text-sm text-muted-foreground">Explore the sportsbook without deposits, withdrawals or cash prizes.</p>
-                  </div>
+                  <h2 className="text-2xl md:text-3xl font-black">Start Betting Today</h2>
                   <Button size="lg" onClick={handleAuthClick} className="bg-primary hover:bg-primary/90 text-background font-black glow-cyan">
-                    Create Demo Account →
+                    Create Account →
                   </Button>
                 </div>
               </div>
